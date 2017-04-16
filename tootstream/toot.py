@@ -22,6 +22,55 @@ KEYSHELL=__name__ + 'shell'
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
+class TootStreamCmd(click.Command):
+    """Overload click.Command to customize help formatting."""
+    def format_usage(self, ctx, formatter):
+        pieces = list(filter(None, self.collect_usage_pieces(ctx)))
+        formatter.write_usage(self.name, ' '.join(pieces))
+
+    def format_help(self, ctx, formatter):
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+        # TODO: detect non-help options and print if exist
+        # only help options atm, skip
+        #self.format_options(ctx, formatter)
+        self.format_epilog(ctx, formatter)
+
+
+class TootStreamGroup(click.Group):
+    """Overload click.Group to customize help formatting."""
+    def format_usage(self, ctx, formatter):
+        TootStreamCmd.format_usage(self, ctx, formatter)
+
+    def format_options(self, ctx, formatter):
+        # TODO: detect non-help options and print if exist
+        # Command.format_options(self, ctx, formatter)
+        self.format_commands(ctx, formatter)
+
+    def format_commands(self, ctx, formatter):
+        # in click.Group this compiles a list of (cmd, help),
+        # but our aliases pull in several duplicates.
+        #
+        # 1. flip the dict, appending keys of duplicate values in a list.
+        flipped = {}
+        for c, f in self.commands.items():
+            if f not in flipped: flipped[f] = []
+            flipped[f].append(c)
+
+        rows = []
+        # 2. sort that list, grab short_help.
+        for cmds in flipped.values():
+            cmds.sort()
+            h = self.commands[cmds[0]].short_help
+            args = self.commands[cmds[0]].collect_usage_pieces(ctx)
+            rows.append(('|'.join(cmds)+' '+' '.join(args), h))
+
+        # 3. hand off to the formatter as ('cmd1|cmd2 <args>', 'help text')
+        if rows:
+            with formatter.section('Commands'):
+                formatter.write_dl(rows)
+
+
 class IdDict:
     """Represents a mapping of local (tootstream) ID's to global
     (mastodon) IDs."""
@@ -352,15 +401,39 @@ def print_error(error):
 ######## BEGIN COMMAND BLOCK ########
 #####################################
 
-@click.group( context_settings=CONTEXT_SETTINGS,
+@click.group( 'tootstream', short_help='tootstream commands',
+              cls=TootStreamGroup,
+              context_settings=CONTEXT_SETTINGS,
               invoke_without_command=True,
-              options_metavar='<options>',
+              options_metavar='',
               subcommand_metavar='<command>' )
 def tootstream():
+    """Tootstream commands.
+
+    Commands can be tab-completed. Some readline keybindings are supported.
+    Command history is available but not saved between sessions.
+
+    Unimplemented:  block/unblock, follow/unfollow
+    """
     pass
 
 
-@tootstream.command( 'toot', options_metavar='<options>',
+@tootstream.command( 'help', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='get help for a command' )
+@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+def help(cmd):
+    """Get details on how to use a command."""
+    ctx = click.get_current_context()
+    if not cmd is None:
+        c = tootstream.get_command(ctx, cmd)
+        click.echo(c.get_help(ctx))
+        return
+    click.echo(tootstream.get_help(ctx))
+
+
+@tootstream.command( 'toot', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='post a toot' )
 @click.argument('text', nargs=-1, metavar='<text>')
 def toot(text):
@@ -373,7 +446,8 @@ def toot(text):
 tootstream.add_command(toot, 't')
 
 
-@tootstream.command( 'boost', options_metavar='<options>',
+@tootstream.command( 'boost', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='boost a toot' )
 @click.argument('tootid', metavar='<id>')
 def boost(tootid):
@@ -391,7 +465,8 @@ tootstream.add_command(boost, 'rt')
 tootstream.add_command(boost, 'retoot')
 
 
-@tootstream.command( 'unboost', options_metavar='<options>',
+@tootstream.command( 'unboost', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='undo a boost' )
 @click.argument('tootid', metavar='<id>')
 def unboost(tootid):
@@ -406,7 +481,8 @@ def unboost(tootid):
     cprint(msg, fg('red') + bg('green'))
 
 
-@tootstream.command( 'fav', options_metavar='<options>',
+@tootstream.command( 'fav', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='favorite a toot' )
 @click.argument('tootid', metavar='<id>')
 def fav(tootid):
@@ -423,11 +499,12 @@ def fav(tootid):
 tootstream.add_command(fav, 'star')
 
 
-@tootstream.command( 'reply', options_metavar='<options>',
+@tootstream.command( 'reply', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='reply to a toot' )
 @click.argument('tootid', metavar='<id>')
 @click.argument('text', nargs=-1, metavar='<text>')
-def rep(tootid, text):
+def reply(tootid, text):
     """Reply to a toot by ID."""
     mastodon = get_active_mastodon()
     parent_id = IDS.to_global(tootid)
@@ -445,11 +522,12 @@ def rep(tootid, text):
     msg = "  Replied with: " + get_content(reply_toot)
     cprint(msg, fg('red') + bg('yellow'))
 # aliases
-tootstream.add_command(rep, 'r')
-tootstream.add_command(rep, 'rep')
+tootstream.add_command(reply, 'r')
+tootstream.add_command(reply, 'rep')
 
 
-@tootstream.command( 'unfav', options_metavar='<options>',
+@tootstream.command( 'unfav', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='unfavorite a toot' )
 @click.argument('tootid', metavar='<id>')
 def unfav(tootid):
@@ -464,7 +542,8 @@ def unfav(tootid):
     cprint(msg, fg('yellow') + bg('red'))
 
 
-@tootstream.command( 'home', options_metavar='<options>',
+@tootstream.command( 'home', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='show home timeline' )
 def home():
     """Displays the Home timeline."""
@@ -475,7 +554,8 @@ def home():
 tootstream.add_command(home, 'h')
 
 
-@tootstream.command( 'public', options_metavar='<options>',
+@tootstream.command( 'public', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='show public timeline' )
 def public():
     """Displays the Public (federated) timeline."""
@@ -487,7 +567,8 @@ tootstream.add_command(public, 'public')
 tootstream.add_command(public, 'fed')
 
 
-@tootstream.command( 'local', options_metavar='<options>',
+@tootstream.command( 'local', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='show local timeline' )
 def local():
     """Displays the Local (instance) timeline."""
@@ -498,7 +579,8 @@ def local():
 tootstream.add_command(local, 'l')
 
 
-@tootstream.command( 'thread', options_metavar='<options>',
+@tootstream.command( 'thread', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='thread history of a toot' )
 @click.argument('tootid', metavar='<id>')
 def thread(tootid):
@@ -545,7 +627,8 @@ tootstream.add_command(thread, 'history')
 tootstream.add_command(thread, 'detail')
 
 
-@tootstream.command( 'note', options_metavar='<options>',
+@tootstream.command( 'note', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='show notification timeline' )
 def note():
     """Displays the Notifications timeline."""
@@ -586,9 +669,10 @@ def note():
 tootstream.add_command(note, 'n')
 
 
-@tootstream.command( 'whois', options_metavar='<options>',
+@tootstream.command( 'whois', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='search for a user' )
-@click.argument('username', metavar='<username>')
+@click.argument('username', metavar='<user>')
 def whois(username):
     """Search for a user."""
     mastodon = get_active_mastodon()
@@ -600,7 +684,8 @@ def whois(username):
 tootstream.add_command(whois, 'who')
 
 
-@tootstream.command( 'whatis', options_metavar='<options>',
+@tootstream.command( 'whatis', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='search for a hashtag' )
 @click.argument('tag', metavar='<tag>')
 def whatis(tag):
@@ -612,7 +697,8 @@ def whatis(tag):
 tootstream.add_command(whatis, 'what')
 
 
-@tootstream.command( 'search', options_metavar='<options>',
+@tootstream.command( 'search', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='search #tag|@user' )
 @click.argument('query', metavar='<query>')
 def search(query):
@@ -645,7 +731,8 @@ def search(query):
 tootstream.add_command(search, 's')
 
 
-@tootstream.command( 'info', options_metavar='<options>',
+@tootstream.command( 'info', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='info about your account' )
 def info():
     """Prints your user info."""
@@ -656,7 +743,8 @@ def info():
 tootstream.add_command(info, 'me')
 
 
-@tootstream.command( 'delete', options_metavar='<options>',
+@tootstream.command( 'delete', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='delete a toot' )
 @click.argument('tootid', metavar='<id>')
 def delete(tootid):
@@ -666,13 +754,14 @@ def delete(tootid):
     if tootid is None:
         return
     mastodon.status_delete(tootid)
-    print("Poof! It's gone.")
+    print("  Poof! It's gone.")
 # aliases
 tootstream.add_command(delete, 'del')
 tootstream.add_command(delete, 'rm')
 
 
-@tootstream.command( 'followers', options_metavar='<options>',
+@tootstream.command( 'followers', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='list who follows you' )
 def followers():
     """Lists users who follow you."""
@@ -686,7 +775,8 @@ def followers():
         printUsersShort(users)
 
 
-@tootstream.command( 'following', options_metavar='<options>',
+@tootstream.command( 'following', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='list who you follow' )
 def following():
     """Lists users you follow."""
@@ -700,7 +790,8 @@ def following():
         printUsersShort(users)
 
 
-@tootstream.command( 'blocks', options_metavar='<options>',
+@tootstream.command( 'blocks', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='list users you block' )
 def blocks():
     """Lists users you have blocked."""
@@ -713,7 +804,8 @@ def blocks():
         printUsersShort(users)
 
 
-@tootstream.command( 'mutes', options_metavar='<options>',
+@tootstream.command( 'mutes', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='list users you mute' )
 def mutes():
     """Lists users you have muted."""
@@ -726,7 +818,8 @@ def mutes():
         printUsersShort(users)
 
 
-@tootstream.command( 'requests', options_metavar='<options>',
+@tootstream.command( 'requests', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='list requests to follow you' )
 def requests():
     """Lists your incoming follow requests."""
@@ -741,7 +834,8 @@ def requests():
         cprint("   or 'reject <id>' to reject", fg('magenta'))
 
 
-@tootstream.command( 'block', options_metavar='<options>',
+@tootstream.command( 'block', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='block a user' )
 @click.argument('username', metavar='<user>')
 def block(username):
@@ -764,7 +858,8 @@ def block(username):
 tootstream.add_command(block, 'bl')
 
 
-@tootstream.command( 'unblock', options_metavar='<options>',
+@tootstream.command( 'unblock', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='unblock a user' )
 @click.argument('username', metavar='<user>')
 def unblock(username):
@@ -785,7 +880,8 @@ def unblock(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'follow', options_metavar='<options>',
+@tootstream.command( 'follow', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='follow a user' )
 @click.argument('username', metavar='<user>')
 def follow(username):
@@ -806,7 +902,8 @@ def follow(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'unfollow', options_metavar='<options>',
+@tootstream.command( 'unfollow', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='unfollow a user' )
 @click.argument('username', metavar='<user>')
 def unfollow(username):
@@ -827,7 +924,8 @@ def unfollow(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'mute', options_metavar='<options>',
+@tootstream.command( 'mute', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='mute a user' )
 @click.argument('username', metavar='<user>')
 def mute(username):
@@ -848,7 +946,8 @@ def mute(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'unmute', options_metavar='<options>',
+@tootstream.command( 'unmute', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='unmute a user' )
 @click.argument('username', metavar='<user>')
 def unmute(username):
@@ -869,7 +968,8 @@ def unmute(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'accept', options_metavar='<options>',
+@tootstream.command( 'accept', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='accept a follow request' )
 @click.argument('username', metavar='<user>')
 def accept(username):
@@ -895,7 +995,8 @@ def accept(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@tootstream.command( 'reject', options_metavar='<options>',
+@tootstream.command( 'reject', options_metavar='',
+                     cls=TootStreamCmd,
                      short_help='reject a follow request' )
 @click.argument('username', metavar='<user>')
 def reject(username):
@@ -922,17 +1023,34 @@ def reject(username):
 
 
 @tootstream.group( 'profile', short_help='profile load|create|remove|list',
+                   cls=TootStreamGroup,
                    context_settings=CONTEXT_SETTINGS,
                    invoke_without_command=True,
                    no_args_is_help=True,
-                   options_metavar='<options>',
+                   options_metavar='',
                    subcommand_metavar='<command>' )
 def profile():
-    """Profile operations: create, load, remove, list."""
+    """Profile management operations: create, load, remove, list.
+    Additions and removals will save the configuration file."""
     pass
 
 
-@profile.command( 'list', options_metavar='<options>',
+@profile.command( 'help', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='get help for a command' )
+@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+def profile_help(cmd):
+    """Get details on how to use a command."""
+    ctx = click.get_current_context()
+    if not cmd is None:
+        c = profile.get_command(ctx, cmd)
+        click.echo(c.get_help(ctx))
+        return
+    click.echo(profile.get_help(ctx))
+
+
+@profile.command( 'list', options_metavar='',
+                  cls=TootStreamCmd,
                   short_help='list known profiles' )
 def profile_list():
     """List known profiles."""
@@ -942,11 +1060,12 @@ def profile_list():
 profile.add_command(profile_list, 'ls')
 
 
-@profile.command( 'add', options_metavar='<options>',
+@profile.command( 'add', options_metavar='',
+                  cls=TootStreamCmd,
                   short_help='add a profile' )
 @click.argument('profile', metavar='<profile>', required=False, default=None)
-@click.argument('instance', metavar='<string>', required=False, default=None)
-@click.argument('email', metavar='<string>', required=False, default=None)
+@click.argument('instance', metavar='<hostname>', required=False, default=None)
+@click.argument('email', metavar='<email>', required=False, default=None)
 @click.argument('password', metavar='<PASSWD>', required=False, default=None)
 def profile_add(profile, instance, email, password):
     """Create a new profile."""
@@ -989,7 +1108,8 @@ profile.add_command(profile_add, 'new')
 profile.add_command(profile_add, 'create')
 
 
-@profile.command( 'del', options_metavar='<options>',
+@profile.command( 'del', options_metavar='',
+                  cls=TootStreamCmd,
                   short_help='delete a profile' )
 @click.argument('profile', metavar='<profile>', required=False, default=None)
 def profile_del(profile):
@@ -1013,7 +1133,8 @@ profile.add_command(profile_del, 'rm')
 profile.add_command(profile_del, 'remove')
 
 
-@profile.command( 'load', options_metavar='<options>',
+@profile.command( 'load', options_metavar='',
+                  cls=TootStreamCmd,
                   short_help='load a profile' )
 @click.argument('profile', metavar='<profile>', required=False, default=None)
 def profile_load(profile):
@@ -1069,9 +1190,9 @@ def authenticated(mastodon):
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option( '--instance', '-i', metavar='<string>',
+@click.option( '--instance', '-i', metavar='<hostname>',
                help='Hostname of the instance to connect' )
-@click.option( '--email', '-e', metavar='<string>',
+@click.option( '--email', '-e', metavar='<email>',
                help='Email to login' )
 @click.option( '--password', '-p', metavar='<PASSWD>',
                help='Password to login (UNSAFE)' )
@@ -1079,7 +1200,7 @@ def authenticated(mastodon):
                type=click.Path(exists=False, readable=True),
                default='~/.config/tootstream/tootstream.conf',
                help='Location of alternate configuration file to load' )
-@click.option( '--profile', '-P', metavar='<string>', default='default',
+@click.option( '--profile', '-P', metavar='<profile>', default='default',
                help='Name of profile for saved credentials (default)' )
 def main(instance, email, password, config, profile):
     configpath = os.path.expanduser(config)
