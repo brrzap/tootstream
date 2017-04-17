@@ -19,11 +19,19 @@ KEYPROFILE = __name__ + 'profile'
 KEYPROMPT = __name__ + 'prompt'
 KEYMASTODON = __name__ + 'mastodon'
 KEYSHELL=__name__ + 'shell'
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict( help_option_names=['-h', '--help'],
+                         max_content_width=100 )
 
 
 class TootStreamCmd(click.Command):
     """Overload click.Command to customize help formatting."""
+    hidden = False
+
+    def __init__(self, hidden=False, aliases=None, *args, **kwargs):
+        super(TootStreamCmd, self).__init__(*args, **kwargs)
+        self.hidden = hidden
+        # do something with aliases
+
     def format_usage(self, ctx, formatter):
         pieces = list(filter(None, self.collect_usage_pieces(ctx)))
         formatter.write_usage(self.name, ' '.join(pieces))
@@ -37,10 +45,23 @@ class TootStreamCmd(click.Command):
         self.format_epilog(ctx, formatter)
 
 
-class TootStreamGroup(click.Group):
+class TootStreamGroup(click.Group, TootStreamCmd):
     """Overload click.Group to customize help formatting."""
+    def __init__(self, *args, **kwargs):
+        super(TootStreamGroup, self).__init__(*args, **kwargs)
+
+    def format_help(self, ctx, formatter):
+        self.format_commands(ctx, formatter)
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+
     def format_usage(self, ctx, formatter):
-        TootStreamCmd.format_usage(self, ctx, formatter)
+        pieces = list(filter(None, self.collect_usage_pieces(ctx)))
+        pieces.append('<args>')
+        basename = ""
+        if self.name != "tootstream":
+            basename = self.name
+        formatter.write_usage(basename, ' '.join(pieces))
 
     def format_options(self, ctx, formatter):
         # TODO: detect non-help options and print if exist
@@ -54,6 +75,11 @@ class TootStreamGroup(click.Group):
         # 1. flip the dict, appending keys of duplicate values in a list.
         flipped = {}
         for c, f in self.commands.items():
+            cmd = self.get_command(ctx, c)
+            if cmd is None:
+                continue
+            if cmd.hidden:
+                continue
             if f not in flipped: flipped[f] = []
             flipped[f].append(c)
 
@@ -1063,12 +1089,18 @@ profile.add_command(profile_list, 'ls')
 @profile.command( 'add', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='add a profile' )
-@click.argument('profile', metavar='<profile>', required=False, default=None)
-@click.argument('instance', metavar='<hostname>', required=False, default=None)
-@click.argument('email', metavar='<email>', required=False, default=None)
-@click.argument('password', metavar='<PASSWD>', required=False, default=None)
+@click.argument('profile', metavar='[<profile>', required=False, default=None)
+@click.argument('instance', metavar='[<hostname>', required=False, default=None)
+@click.argument('email', metavar='[<email>', required=False, default=None)
+@click.argument('password', metavar='[<passwd>]]]]', required=False, default=None)
 def profile_add(profile, instance, email, password):
-    """Create a new profile."""
+    """Create a new profile.
+
+    \b
+        profile:  name of the profile to add
+       hostname:  instance this account is on
+          email:  email to log into the account
+         passwd:  password to the account (UNSAFE -- this will be visible)"""
     if profile is None:
         profile = input("  Profile name: ")
 
