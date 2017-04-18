@@ -465,9 +465,10 @@ def help(cmd):
 def toot(text):
     """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'."""
     mastodon = get_active_mastodon()
-    mastodon.toot(text)
+    post_text = ' '.join(text)
+    mastodon.toot(post_text)
     cprint("You tooted: ", fg('magenta') + attr('bold'), end="")
-    cprint(text, fg('magenta') + bg('white') + attr('bold') + attr('underlined'))
+    cprint(post_text, fg('magenta') + bg('white') + attr('bold') + attr('underlined'))
 # aliases
 tootstream.add_command(toot, 't')
 
@@ -533,6 +534,7 @@ tootstream.add_command(fav, 'star')
 def reply(tootid, text):
     """Reply to a toot by ID."""
     mastodon = get_active_mastodon()
+    reply_text = ' '.join(text)
     parent_id = IDS.to_global(tootid)
     if parent_id is None:
         cprint("  Error: tootid not found", fg('red'))
@@ -543,7 +545,7 @@ def reply(tootid, text):
     mentions = ["@%s" % i for i in list(set(mentions))] # Remove dups
     mentions = ' '.join(mentions)
     # TODO: Ensure that content warning visibility carries over to reply
-    reply_toot = mastodon.status_post('%s %s' % (mentions, text),
+    reply_toot = mastodon.status_post('%s %s' % (mentions, reply_text),
                                       in_reply_to_id=int(parent_id))
     msg = "  Replied with: " + get_content(reply_toot)
     cprint(msg, fg('red') + bg('yellow'))
