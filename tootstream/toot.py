@@ -7,38 +7,14 @@ import configparser
 import random
 import readline
 from toot_parser import TootParser
+from toot_iddict import TootIdDict
 from mastodon import Mastodon
 from collections import OrderedDict
 from colored import fg, attr, stylize
 
 COLORS = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
 
-class IdDict:
-    """Represents a mapping of local (tootstream) ID's to global
-    (mastodon) IDs."""
-    def __init__(self):
-        self._map = []
-
-    def to_local(self, global_id):
-        """Returns the local ID for a global ID"""
-        global_id = int(global_id) # In case a string gets passed
-        try:
-            return self._map.index(global_id)
-        except ValueError:
-            self._map.append(global_id)
-            return len(self._map) - 1
-
-    def to_global(self, local_id):
-        """Returns the global ID for a local ID, or None if ID is invalid.
-        Also prints an error message"""
-        local_id = int(local_id)
-        try:
-            return self._map[local_id]
-        except:
-            cprint('Invalid ID.', fg('red'))
-            return None
-
-IDS = IdDict();
+IDS = TootIdDict();
 
 toot_parser = TootParser(indent='  ')
 
