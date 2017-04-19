@@ -144,6 +144,14 @@ def printTimelineToot(toot, mastodon):
         cprint(content + "\n", fg('white'))
 
 
+def printUser(user):
+    """Prints user data nicely with hardcoded colors."""
+    print("@" + str(user['username']))
+    cprint(user['display_name'], fg('cyan'))
+    print(user['url'])
+    cprint(re.sub('<[^<]+?>', '', user['note']), fg('red'))
+
+
 def print_error(msg):
     cprint(msg, fg('red')+attr('bold'))
 
@@ -307,6 +315,59 @@ def thread(mastodon, rest):
 
 
 @command
+def search(mastodon, rest):
+    """Search for a #tag or @user."""
+    usage = str( "  usage: search #tagname\n" +
+                 "         search @username" )
+    try:
+        indicator = rest[:1]
+        query = rest[1:]
+    except:
+        cprint(usage, fg('red'))
+        return
+
+    # @ user search
+    if indicator == "@" and not query == "":
+        users = mastodon.account_search(query)
+
+        for user in users:
+            printUser(user)
+    # end @
+
+    # # hashtag search
+    elif indicator == "#" and not query == "":
+        for toot in reversed(mastodon.timeline_hashtag(query)):
+            display_name = "  " + toot['account']['display_name']
+            username = " @" + toot['account']['username'] + " "
+            reblogs_count = "  ♺:" + str(toot['reblogs_count'])
+            favourites_count = " ♥:" + str(toot['favourites_count']) + " "
+            toot_id = str(IDS.to_local(toot['id']))
+
+            # Prints individual toot/tooter info
+            cprint(display_name, fg('green'), end="",)
+            cprint(username + toot['created_at'], fg('yellow'))
+            cprint(reblogs_count + favourites_count, fg('cyan'), end="")
+            cprint(toot_id, fg('red') + attr('bold'))
+
+            # Shows boosted toots as well
+            if toot['reblog']:
+                username = "  Boosted @" + toot['reblog']['account']['acct'] +": "
+                cprint(username, fg('blue'), end='')
+                content = get_content(toot['reblog'])
+            else:
+                content = get_content(toot)
+
+            print(content + "\n")
+    # end #
+
+    else:
+        cprint("  Invalid format.\n"+usage, fg('red'))
+
+    return
+
+
+
+@command
 def note(mastodon, rest):
     """Displays the Notifications timeline."""
     for note in reversed(mastodon.notifications()):
@@ -353,11 +414,7 @@ def quit(mastodon, rest):
 def info(mastodon, rest):
     """Prints your user info."""
     user = mastodon.account_verify_credentials()
-
-    print("@" + str(user['username']))
-    cprint(user['display_name'], fg('cyan'))
-    print(user['url'])
-    cprint(re.sub('<[^<]+?>', '', user['note']), fg('red'))
+    printUser(user)
 
 
 @command
