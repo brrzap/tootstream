@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os.path
 import click
 import getpass
@@ -6,8 +8,8 @@ import re
 import configparser
 import random
 import readline
-from toot_parser import TootParser
-from toot_iddict import TootIdDict
+from tootstream import *
+#from tootstream import TootParser, TootIdDict
 from mastodon import Mastodon
 from collections import OrderedDict
 from colored import fg, attr, stylize
