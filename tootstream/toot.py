@@ -18,12 +18,17 @@ IDS = TootIdDict();
 
 toot_parser = TootParser(indent='  ')
 
+
+#####################################
+######## UTILITY FUNCTIONS # ########
+#####################################
 def get_content(toot):
     html = toot['content']
     toot_parser.reset()
     toot_parser.feed(html)
     toot_parser.close()
     return toot_parser.get_text()
+
 
 def parse_config(filename):
     (dirpath, basename) = os.path.split(filename)
@@ -40,6 +45,7 @@ def parse_config(filename):
         return {}
 
     return config
+
 
 def save_config(filename, instance, client_id, client_secret, token):
     (dirpath, basename) = os.path.split(filename)
@@ -58,16 +64,8 @@ def save_config(filename, instance, client_id, client_secret, token):
 
 
 def register_app(instance):
-    # filename = CONF_PATH + instance + CLIENT_FILE
-    # if not os.path.exists(CONF_PATH):
-        # os.makedirs(CONF_PATH)
-    # if os.path.isfile(filename):
-        # return
-
-    return Mastodon.create_app(
-        'tootstream',
-        api_base_url="https://" + instance
-    )
+    return Mastodon.create_app( 'tootstream',
+                                api_base_url="https://" + instance )
 
 
 def login(mastodon, instance, email, password):
@@ -78,6 +76,10 @@ def login(mastodon, instance, email, password):
 
     return mastodon.log_in(email, password)
 
+
+#####################################
+######## OUTPUT FORMATTING # ########
+#####################################
 def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
 
@@ -329,14 +331,9 @@ def unfollow(mastodon, rest):
 #####################################
 
 
-def authenticated(mastodon):
-    if not os.path.isfile(APP_CRED):
-        return False
-    if mastodon.account_verify_credentials().get('error'):
-        return False
-    return True
-
-
+#####################################
+######## MAIN #######################
+#####################################
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option( '--instance', '-i', metavar='<string>',
