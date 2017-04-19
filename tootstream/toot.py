@@ -84,6 +84,10 @@ def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
 
 
+def print_error(msg):
+    cprint(msg, fg('red')+attr('bold'))
+
+
 #####################################
 ######## BEGIN COMMAND BLOCK ########
 #####################################
@@ -116,7 +120,7 @@ def boost(mastodon, rest):
     """Boosts a toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
-        return
+        return print_error("error: invalid ID.")
     mastodon.status_reblog(rest)
     boosted = mastodon.status(rest)
     msg = "  Boosted: " + get_content(boosted)
@@ -128,7 +132,7 @@ def unboost(mastodon, rest):
     """Removes a boosted tweet by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
-        return
+        return print_error("error: invalid ID.")
     mastodon.status_unreblog(rest)
     unboosted = mastodon.status(rest)
     msg = "  Removed boost: " + get_content(unboosted)
@@ -140,7 +144,7 @@ def fav(mastodon, rest):
     """Favorites a toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
-        return
+        return print_error("error: invalid ID.")
     mastodon.status_favourite(rest)
     faved = mastodon.status(rest)
     msg = "  Favorited: " + get_content(faved)
@@ -152,7 +156,7 @@ def rep(mastodon, rest):
     command = rest.split(' ', 1)
     parent_id = IDS.to_global(command[0])
     if parent_id is None:
-        return
+        return print_error("error: invalid ID.")
     try:
         reply_text = command[1]
     except IndexError:
@@ -173,7 +177,7 @@ def unfav(mastodon, rest):
     """Removes a favorite toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
-        return
+        return print_error("error: invalid ID.")
     mastodon.status_unfavourite(rest)
     unfaved = mastodon.status(rest)
     msg = "  Removed favorite: " + get_content(unfaved)
@@ -297,7 +301,7 @@ def delete(mastodon, rest):
     """Deletes your toot by ID"""
     rest = IDS.to_global(rest)
     if rest is None:
-        return
+        return print_error("error: invalid ID.")
     mastodon.status_delete(rest)
     print("Poof! It's gone.")
 
