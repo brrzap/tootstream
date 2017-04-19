@@ -9,7 +9,7 @@ import readline
 from toot_parser import TootParser
 from mastodon import Mastodon
 from collections import OrderedDict
-from colored import fg, bg, attr, stylize
+from colored import fg, attr, stylize
 
 COLORS = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
 
@@ -31,7 +31,7 @@ class IdDict:
     def to_global(self, local_id):
         """Returns the global ID for a local ID, or None if ID is invalid.
         Also prints an error message"""
-        local_id = int(local_id) 
+        local_id = int(local_id)
         try:
             return self._map[local_id]
         except:
@@ -130,7 +130,7 @@ def toot(mastodon, rest):
     """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'."""
     mastodon.toot(rest)
     cprint("You tooted: ", fg('magenta') + attr('bold'), end="")
-    cprint(rest, fg('magenta') + bg('white') + attr('bold') + attr('underlined'))
+    cprint(rest, fg('magenta') + attr('bold') + attr('underlined'))
 
 
 @command
@@ -142,7 +142,7 @@ def boost(mastodon, rest):
     mastodon.status_reblog(rest)
     boosted = mastodon.status(rest)
     msg = "  Boosted: " + get_content(boosted)
-    cprint(msg, fg('green') + bg('red'))
+    cprint(msg, fg('green'))
 
 
 @command
@@ -154,7 +154,7 @@ def unboost(mastodon, rest):
     mastodon.status_unreblog(rest)
     unboosted = mastodon.status(rest)
     msg = "  Removed boost: " + get_content(unboosted)
-    cprint(msg, fg('red') + bg('green'))
+    cprint(msg, fg('red'))
 
 
 @command
@@ -166,7 +166,7 @@ def fav(mastodon, rest):
     mastodon.status_favourite(rest)
     faved = mastodon.status(rest)
     msg = "  Favorited: " + get_content(faved)
-    cprint(msg, fg('red') + bg('yellow'))
+    cprint(msg, fg('red'))
 
 @command
 def rep(mastodon, rest):
@@ -188,7 +188,7 @@ def rep(mastodon, rest):
     reply_toot = mastodon.status_post('%s %s' % (mentions, reply_text),
                                       in_reply_to_id=int(parent_id))
     msg = "  Replied with: " + get_content(reply_toot)
-    cprint(msg, fg('red') + bg('yellow'))
+    cprint(msg, fg('red'))
 
 @command
 def unfav(mastodon, rest):
@@ -199,7 +199,7 @@ def unfav(mastodon, rest):
     mastodon.status_unfavourite(rest)
     unfaved = mastodon.status(rest)
     msg = "  Removed favorite: " + get_content(unfaved)
-    cprint(msg, fg('yellow') + bg('red'))
+    cprint(msg, fg('yellow'))
 
 
 @command
@@ -220,7 +220,7 @@ def home(mastodon, rest):
 
         cprint(reblogs_count, fg('cyan'), end="")
         cprint(favourites_count, fg('yellow'), end="")
-        
+
         cprint("id:" + toot_id, fg('red'))
 
         # Shows boosted toots as well
@@ -291,7 +291,7 @@ def note(mastodon, rest):
             username = re.sub('<[^<]+?>', '', username)
             display_name = note['account']['display_name']
             print("  ", end="")
-            cprint(display_name + username + " followed you!", fg('red') + bg('green'))
+            cprint(display_name + username + " followed you!", fg('red'))
 
         # blank line
         print('')
@@ -309,9 +309,9 @@ def info(mastodon, rest):
     user = mastodon.account_verify_credentials()
 
     print("@" + str(user['username']))
-    cprint(user['display_name'], fg('cyan') + bg('red'))
+    cprint(user['display_name'], fg('cyan'))
     print(user['url'])
-    cprint(re.sub('<[^<]+?>', '', user['note']), fg('red') + bg('green'))
+    cprint(re.sub('<[^<]+?>', '', user['note']), fg('red'))
 
 
 @command
@@ -426,7 +426,7 @@ def main(instance, email, password, config):
     save_config(configpath, instance, client_id, client_secret, token)
 
     say_error = lambda a, b: cprint("Invalid command. Use 'help' for a list of commands.",
-            fg('white') + bg('red'))
+            fg('white'))
 
     print("You are connected to ", end="")
     cprint(instance, fg('green') + attr('bold'))
