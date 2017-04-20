@@ -84,6 +84,29 @@ def get_known_profiles():
     return list( set(cfg.sections()) - set(RESERVED) )
 
 
+def get_userid(rest):
+    # we got some user input.  we need a userid (int).
+    # returns userid as int, -1 on error, or list of users if ambiguous.
+    mastodon = get_active_mastodon()
+    if not rest:
+        return -1
+
+    # maybe it's already an int
+    try:
+        return int(rest)
+    except ValueError:
+        pass
+
+    # not an int
+    users = mastodon.account_search(rest)
+    if not users:
+        return -1
+    elif len(users) > 1:
+        return users
+    else:
+        return users[0]['id']
+
+
 def parse_config():
     filename = get_configfile()
     (dirpath, basename) = os.path.split(filename)
@@ -192,6 +215,10 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
     return instance, client_id, client_secret, token
 
 
+def cprint(text, style, end="\n"):
+    print(stylize(text, style), end=end)
+
+
 def print_profiles():
     active = get_active_profile()
     inactiveprofiles = get_known_profiles()
@@ -224,7 +251,8 @@ def printHistoryToot(toot):
     print(content + "\n")
 
 
-def printTimelineToot(toot, mastodon):
+def printTimelineToot(toot):
+    mastodon = get_active_mastodon()
     display_name = "  " + toot['account']['display_name'] + " "
     username = "@" + toot['account']['acct'] + " "
     reblogs_count = "  ♺:" + str(toot['reblogs_count'])
@@ -271,6 +299,23 @@ def printUser(user):
     cprint(user['display_name'], fg('cyan'))
     print(user['url'])
     cprint(re.sub('<[^<]+?>', '', user['note']), fg('red'))
+
+
+def printUsersShort(users):
+    for user in users:
+        if not user: continue
+        locked = ""
+        # lock glyphs: masto web uses FontAwesome's U+F023 (nonstandard)
+        # lock emoji: U+1F512
+        if user['locked']: locked = " \U0001f512"
+        userstr = "@"+str(user['acct'])+locked
+        userid = "(id:"+str(user['id'])+")"
+        userdisp = "'"+str(user['display_name'])+"'"
+        userurl = str(user['url'])
+        cprint("  "+userstr, fg('green'), end=" ")
+        cprint(" "+userid, fg('red'), end=" ")
+        cprint(" "+userdisp, fg('cyan'))
+        cprint("      "+userurl, fg('blue'))
 
 
 def print_error(msg):
@@ -386,7 +431,7 @@ def home(rest):
     """Displays the Home timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_home()):
-        printTimelineToot(toot, mastodon)
+        printTimelineToot(toot)
 
 
 @command
@@ -394,7 +439,7 @@ def public(rest):
     """Displays the Public (federated) timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_public()):
-        printTimelineToot(toot, mastodon)
+        printTimelineToot(toot)
 
 
 @command
@@ -402,7 +447,7 @@ def local(rest):
     """Displays the Local (instance) timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_local()):
-        printTimelineToot(toot, mastodon)
+        printTimelineToot(toot)
 
 
 @command
@@ -445,6 +490,44 @@ def thread(rest):
         for newToot in dicts['descendants']:
             printHistoryToot(newToot)
         cprint("  =========   " + "↑↑↑↑↑↑ Newer Toots End ↑↑↑↑↑↑" + "   ========", fg('green'))
+
+
+@command
+def note(rest):
+    """Displays the Notifications timeline."""
+    mastodon = get_active_mastodon()
+    for note in reversed(mastodon.notifications()):
+        display_name = "  " + note['account']['display_name']
+        username = " @" + note['account']['username']
+
+        # Mentions
+        if note['type'] == 'mention':
+            cprint(display_name + username + " mentioned you =================", fg('magenta'))
+            printTimelineToot(note['status'])
+
+        # Favorites
+        elif note['type'] == 'favourite':
+            reblogs_count = "  " + "♺:" + str(note['status']['reblogs_count'])
+            favourites_count = " ♥:" + str(note['status']['favourites_count'])
+            time = " " + note['status']['created_at']
+            content = get_content(note['status'])
+            cprint(display_name + username + " favorited your status:", fg('green'))
+            cprint(reblogs_count + favourites_count + time + '\n' + content, fg('green'))
+
+        # Boosts
+        elif note['type'] == 'reblog':
+            cprint(display_name + username + " boosted your status:", fg('yellow'))
+            cprint(get_content(note['status']), fg('yellow'))
+
+        # Follows
+        elif note['type'] == 'follow':
+            username = re.sub('<[^<]+?>', '', username)
+            display_name = note['account']['display_name']
+            print("  ", end="")
+            cprint(display_name + username + " followed you!", fg('red') + bg('green'))
+
+        # blank line
+        print('')
 
 
 @command
@@ -500,45 +583,6 @@ def search(rest):
     return
 
 
-
-@command
-def note(rest):
-    """Displays the Notifications timeline."""
-    mastodon = get_active_mastodon()
-    for note in reversed(mastodon.notifications()):
-        display_name = "  " + note['account']['display_name']
-        username = " @" + note['account']['username']
-
-        # Mentions
-        if note['type'] == 'mention':
-            cprint(display_name + username + " mentioned you =================", fg('magenta'))
-            printTimelineToot(note['status'], mastodon)
-
-        # Favorites
-        elif note['type'] == 'favourite':
-            reblogs_count = "  " + "♺:" + str(note['status']['reblogs_count'])
-            favourites_count = " ♥:" + str(note['status']['favourites_count'])
-            time = " " + note['status']['created_at']
-            content = get_content(note['status'])
-            cprint(display_name + username + " favorited your status:", fg('green'))
-            cprint(reblogs_count + favourites_count + time + '\n' + content, fg('green'))
-
-        # Boosts
-        elif note['type'] == 'reblog':
-            cprint(display_name + username + " boosted your status:", fg('yellow'))
-            cprint(get_content(note['status']), fg('yellow'))
-
-        # Follows
-        elif note['type'] == 'follow':
-            username = re.sub('<[^<]+?>', '', username)
-            display_name = note['account']['display_name']
-            print("  ", end="")
-            cprint(display_name + username + " followed you!", fg('red'))
-
-        # blank line
-        print('')
-
-
 @command
 def quit(rest):
     """Ends the program."""
@@ -562,34 +606,6 @@ def delete(rest):
         return print_error("error: invalid ID.")
     mastodon.status_delete(rest)
     print("Poof! It's gone.")
-
-
-@command
-def block(rest):
-    """Blocks a user by username."""
-    # TODO: Find out how to get global usernames
-    mastodon = get_active_mastodon()
-
-
-@command
-def unblock(rest):
-    """Unblocks a user by username."""
-    # TODO: Find out how to get global usernames
-    mastodon = get_active_mastodon()
-
-
-@command
-def follow(rest):
-    """Follows an account by username."""
-    # TODO: Find out how to get global usernames
-    mastodon = get_active_mastodon()
-
-
-@command
-def unfollow(rest):
-    """Unfollows an account by username."""
-    # TODO: Find out how to get global usernames
-    mastodon = get_active_mastodon()
 
 
 @command
@@ -704,6 +720,232 @@ def profile(rest):
     # no subcommand; print usage
     cprint(usage, fg('red'))
     return
+
+
+@command
+def followers(rest):
+    """Lists users who follow you."""
+    mastodon = get_active_mastodon()
+    user = mastodon.account_verify_credentials()
+    users = mastodon.account_followers(user['id'])
+    if not users:
+        cprint("  You don't have any followers", fg('red'))
+    else:
+        cprint("  Your followers:", fg('magenta'))
+        printUsersShort(users)
+
+
+@command
+def following(rest):
+    """Lists users you follow."""
+    mastodon = get_active_mastodon()
+    user = mastodon.account_verify_credentials()
+    users = mastodon.account_following(user['id'])
+    if not users:
+        cprint("  You're safe!  There's nobody following you", fg('red'))
+    else:
+        cprint("  People following you:", fg('magenta'))
+        printUsersShort(users)
+
+
+@command
+def blocks(rest):
+    """Lists users you have blocked."""
+    mastodon = get_active_mastodon()
+    users = mastodon.blocks()
+    if not users:
+        cprint("  You haven't blocked anyone (... yet)", fg('red'))
+    else:
+        cprint("  You have blocked:", fg('magenta'))
+        printUsersShort(users)
+
+
+@command
+def mutes(rest):
+    """Lists users you have muted."""
+    mastodon = get_active_mastodon()
+    users = mastodon.mutes()
+    if not users:
+        cprint("  You haven't muted anyone (... yet)", fg('red'))
+    else:
+        cprint("  You have muted:", fg('magenta'))
+        printUsersShort(users)
+
+
+@command
+def requests(rest):
+    """Lists your incoming follow requests."""
+    mastodon = get_active_mastodon()
+    users = mastodon.follow_requests()
+    if not users:
+        cprint("  You have no incoming requests", fg('red'))
+    else:
+        cprint("  These users want to follow you:", fg('magenta'))
+        printUsersShort(users)
+        cprint("  run 'accept <id>' to accept", fg('magenta'))
+        cprint("   or 'reject <id>' to reject", fg('magenta'))
+
+
+@command
+def block(rest):
+    """Blocks a user by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_block(userid)
+            if relations['blocking']:
+                cprint("  user " + str(userid) + " is now blocked", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def unblock(rest):
+    """Unblocks a user by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_unblock(userid)
+            if not relations['blocking']:
+                cprint("  user " + str(userid) + " is now unblocked", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def follow(rest):
+    """Follows an account by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_follow(userid)
+            if relations['following']:
+                cprint("  user " + str(userid) + " is now followed", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def unfollow(rest):
+    """Unfollows an account by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_unfollow(userid)
+            if not relations['following']:
+                cprint("  user " + str(userid) + " is now unfollowed", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def mute(rest):
+    """Mutes a user by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_mute(userid)
+            if relations['muting']:
+                cprint("  user " + str(userid) + " is now muted", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def unmute(rest):
+    """Unmutes a user by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            relations = mastodon.account_unmute(userid)
+            if not relations['muting']:
+                cprint("  user " + str(userid) + " is now unmuted", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def accept(rest):
+    """Accepts a user's follow request by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            user = mastodon.follow_request_authorize(userid)
+            # a more thorough check would be to call
+            # mastodon.account_relationships(user['id'])
+            # and check the returned data
+            # here we're lazy and assume we're good if the
+            # api return matches the request
+            if user['id'] == userid:
+                cprint("  user " + str(userid) + "'s request is accepted", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
+
+
+@command
+def reject(rest):
+    """Rejects a user's follow request by username or id."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(rest)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        try:
+            user = mastodon.follow_request_reject(userid)
+            # a more thorough check would be to call
+            # mastodon.account_relationships(user['id'])
+            # and check the returned data
+            # here we're lazy and assume we're good if the
+            # api return matches the request
+            if user['id'] == userid:
+                cprint("  user " + str(userid) + "'s request is rejected", fg('blue'))
+        except:
+            cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
 #####################################
