@@ -10,6 +10,7 @@ import random
 import readline
 from tootstream import *
 #from tootstream import TootParser, TootIdDict
+from click_shell import make_click_shell
 from mastodon import Mastodon
 from collections import OrderedDict
 from colored import fg, attr, stylize
@@ -20,6 +21,83 @@ KEYCFGFILE = __name__ + 'cfgfile'
 KEYPROFILE = __name__ + 'profile'
 KEYPROMPT = __name__ + 'prompt'
 KEYMASTODON = __name__ + 'mastodon'
+KEYSHELL=__name__ + 'shell'
+CONTEXT_SETTINGS = dict( help_option_names=['-h', '--help'],
+                         max_content_width=100 )
+
+
+class TootStreamCmd(click.Command):
+    """Overload click.Command to customize help formatting."""
+    hidden = False
+
+    def __init__(self, hidden=False, aliases=None, *args, **kwargs):
+        super(TootStreamCmd, self).__init__(*args, **kwargs)
+        self.hidden = hidden
+        # do something with aliases
+
+    def format_usage(self, ctx, formatter):
+        pieces = list(filter(None, self.collect_usage_pieces(ctx)))
+        formatter.write_usage(self.name, ' '.join(pieces))
+
+    def format_help(self, ctx, formatter):
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+        # TODO: detect non-help options and print if exist
+        # only help options atm, skip
+        #self.format_options(ctx, formatter)
+        self.format_epilog(ctx, formatter)
+
+
+class TootStreamGroup(click.Group, TootStreamCmd):
+    """Overload click.Group to customize help formatting."""
+    def __init__(self, *args, **kwargs):
+        super(TootStreamGroup, self).__init__(*args, **kwargs)
+
+    def format_help(self, ctx, formatter):
+        self.format_commands(ctx, formatter)
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+
+    def format_usage(self, ctx, formatter):
+        pieces = list(filter(None, self.collect_usage_pieces(ctx)))
+        pieces.append('<args>')
+        basename = ""
+        if self.name != "tootstream":
+            basename = self.name
+        formatter.write_usage(basename, ' '.join(pieces))
+
+    def format_options(self, ctx, formatter):
+        # TODO: detect non-help options and print if exist
+        # Command.format_options(self, ctx, formatter)
+        self.format_commands(ctx, formatter)
+
+    def format_commands(self, ctx, formatter):
+        # in click.Group this compiles a list of (cmd, help),
+        # but our aliases pull in several duplicates.
+        #
+        # 1. flip the dict, appending keys of duplicate values in a list.
+        flipped = {}
+        for c, f in self.commands.items():
+            cmd = self.get_command(ctx, c)
+            if cmd is None:
+                continue
+            if cmd.hidden:
+                continue
+            if f not in flipped: flipped[f] = []
+            flipped[f].append(c)
+
+        rows = []
+        # 2. sort that list, grab short_help.
+        for cmds in flipped.values():
+            cmds.sort()
+            h = self.commands[cmds[0]].short_help
+            args = self.commands[cmds[0]].collect_usage_pieces(ctx)
+            rows.append(('|'.join(cmds)+' '+' '.join(args), h))
+
+        # 3. hand off to the formatter as ('cmd1|cmd2 <args>', 'help text')
+        if rows:
+            with formatter.section('Commands'):
+                formatter.write_dl(rows)
 
 
 IDS = TootIdDict();
@@ -48,7 +126,9 @@ def get_configfile():
 
 
 def set_prompt(prompt):
-    click.get_current_context().meta[KEYPROMPT] = prompt
+    ctx = click.get_current_context()
+    ctx.meta[KEYPROMPT] = prompt
+    ctx.meta[KEYSHELL].prompt = prompt
     return
 
 
@@ -84,21 +164,21 @@ def get_known_profiles():
     return list( set(cfg.sections()) - set(RESERVED) )
 
 
-def get_userid(rest):
+def get_userid(username):
     # we got some user input.  we need a userid (int).
     # returns userid as int, -1 on error, or list of users if ambiguous.
-    mastodon = get_active_mastodon()
-    if not rest:
+    if not username:
         return -1
 
     # maybe it's already an int
     try:
-        return int(rest)
+        return int(username)
     except ValueError:
         pass
 
     # not an int
-    users = mastodon.account_search(rest)
+    mastodon = get_active_mastodon()
+    users = mastodon.account_search(username)
     if not users:
         return -1
     elif len(users) > 1:
@@ -325,82 +405,118 @@ def print_error(msg):
 #####################################
 ######## BEGIN COMMAND BLOCK ########
 #####################################
-commands = OrderedDict()
+
+@click.group( 'tootstream', short_help='tootstream commands',
+              cls=TootStreamGroup,
+              context_settings=CONTEXT_SETTINGS,
+              invoke_without_command=True,
+              options_metavar='',
+              subcommand_metavar='<command>' )
+def tootstream():
+    """Tootstream commands.
+
+    Commands can be tab-completed. Some readline keybindings are supported.
+    Command history is available but not saved between sessions.
+
+    unimplemented: 2FA, CW/NSFW, media attachments, user timelines, favourites list
+    """
+    pass
 
 
-def command(func):
-    commands[func.__name__] = func
-    return func
+@tootstream.command( 'help', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='get help for a command' )
+@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+def help(cmd):
+    """Get details on how to use a command."""
+    ctx = click.get_current_context()
+    if not cmd is None:
+        c = tootstream.get_command(ctx, cmd)
+        click.echo(c.get_help(ctx))
+        return
+    click.echo(tootstream.get_help(ctx))
 
 
-@command
-def help(rest):
-    """List all commands."""
-    print("Commands:")
-    for command, cmd_func in commands.items():
-        print("\t{}\t{}".format(command, cmd_func.__doc__))
-
-
-@command
-def toot(rest):
+@tootstream.command( 'toot', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='post a toot' )
+@click.argument('text', nargs=-1, metavar='<text>')
+def toot(text):
     """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'."""
     mastodon = get_active_mastodon()
-    mastodon.toot(rest)
+    post_text = ' '.join(text)
+    mastodon.toot(post_text)
     cprint("You tooted: ", fg('magenta') + attr('bold'), end="")
     cprint(rest, fg('magenta') + attr('bold') + attr('underlined'))
+# aliases
+tootstream.add_command(toot, 't')
 
 
-@command
-def boost(rest):
+@tootstream.command( 'boost', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='boost a toot' )
+@click.argument('tootid', metavar='<id>')
+def boost(tootid):
     """Boosts a toot by ID."""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return print_error("error: invalid ID.")
-    mastodon.status_reblog(rest)
-    boosted = mastodon.status(rest)
+    mastodon.status_reblog(tootid)
+    boosted = mastodon.status(tootid)
     msg = "  Boosted: " + get_content(boosted)
     cprint(msg, fg('green'))
+# aliases
+tootstream.add_command(boost, 'rt')
+tootstream.add_command(boost, 'retoot')
 
 
-@command
-def unboost(rest):
+@tootstream.command( 'unboost', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='undo a boost' )
+@click.argument('tootid', metavar='<id>')
+def unboost(tootid):
     """Removes a boosted tweet by ID."""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return print_error("error: invalid ID.")
-    mastodon.status_unreblog(rest)
-    unboosted = mastodon.status(rest)
+    mastodon.status_unreblog(tootid)
+    unboosted = mastodon.status(tootid)
     msg = "  Removed boost: " + get_content(unboosted)
     cprint(msg, fg('red'))
 
 
-@command
-def fav(rest):
+@tootstream.command( 'fav', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='favorite a toot' )
+@click.argument('tootid', metavar='<id>')
+def fav(tootid):
     """Favorites a toot by ID."""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return print_error("error: invalid ID.")
-    mastodon.status_favourite(rest)
-    faved = mastodon.status(rest)
+    mastodon.status_favourite(tootid)
+    faved = mastodon.status(tootid)
     msg = "  Favorited: " + get_content(faved)
     cprint(msg, fg('red'))
+# aliases
+tootstream.add_command(fav, 'star')
 
 
-@command
-def rep(rest):
+@tootstream.command( 'reply', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='reply to a toot' )
+@click.argument('tootid', metavar='<id>')
+@click.argument('text', nargs=-1, metavar='<text>')
+def reply(tootid, text):
     """Reply to a toot by ID."""
     mastodon = get_active_mastodon()
-    command = rest.split(' ', 1)
-    parent_id = IDS.to_global(command[0])
+    reply_text = ' '.join(text)
+    parent_id = IDS.to_global(tootid)
     if parent_id is None:
         return print_error("error: invalid ID.")
-    try:
-        reply_text = command[1]
-    except IndexError:
-        reply_text = ''
     parent_toot = mastodon.status(parent_id)
     mentions = [i['acct'] for i in parent_toot['mentions']]
     mentions.append(parent_toot['account']['acct'])
@@ -411,53 +527,75 @@ def rep(rest):
                                       in_reply_to_id=int(parent_id))
     msg = "  Replied with: " + get_content(reply_toot)
     cprint(msg, fg('red'))
+# aliases
+tootstream.add_command(reply, 'r')
+tootstream.add_command(reply, 'rep')
 
 
-@command
-def unfav(rest):
+@tootstream.command( 'unfav', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='unfavorite a toot' )
+@click.argument('tootid', metavar='<id>')
+def unfav(tootid):
     """Removes a favorite toot by ID."""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return print_error("error: invalid ID.")
-    mastodon.status_unfavourite(rest)
-    unfaved = mastodon.status(rest)
+    mastodon.status_unfavourite(tootid)
+    unfaved = mastodon.status(tootid)
     msg = "  Removed favorite: " + get_content(unfaved)
     cprint(msg, fg('yellow'))
 
 
-@command
-def home(rest):
+@tootstream.command( 'home', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show home timeline' )
+def home():
     """Displays the Home timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_home()):
         printTimelineToot(toot)
+# aliases
+tootstream.add_command(home, 'h')
 
 
-@command
-def public(rest):
+@tootstream.command( 'public', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show public timeline' )
+def public():
     """Displays the Public (federated) timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_public()):
         printTimelineToot(toot)
+# aliases
+tootstream.add_command(public, 'public')
+tootstream.add_command(public, 'fed')
 
 
-@command
-def local(rest):
+@tootstream.command( 'local', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show local timeline' )
+def local():
     """Displays the Local (instance) timeline."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_local()):
         printTimelineToot(toot)
+# aliases
+tootstream.add_command(local, 'l')
 
 
-@command
-def thread(rest):
+@tootstream.command( 'thread', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='thread history of a toot' )
+@click.argument('tootid', metavar='<id>')
+def thread(tootid):
     """Displays the thread this toot is part of, ex: 'thread 7'"""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return
-    dicts = mastodon.status_context(rest)
+    dicts = mastodon.status_context(tootid)
 
     # No history
     if ((len(dicts['ancestors']) == 0) and (len(dicts['descendants']) == 0)):
@@ -472,7 +610,7 @@ def thread(rest):
         cprint("  =========   " + "↑↑↑↑↑↑ Older Toots End ↑↑↑↑↑↑" + "   ========", fg('red'))
 
     # Print current toot
-    currentToot = mastodon.status(rest)
+    currentToot = mastodon.status(tootid)
     display_name = "  " + currentToot['account']['display_name']
     username = " @" + currentToot['account']['username'] + " "
     reblogs_count = "  ♺:" + str(currentToot['reblogs_count'])
@@ -490,10 +628,15 @@ def thread(rest):
         for newToot in dicts['descendants']:
             printHistoryToot(newToot)
         cprint("  =========   " + "↑↑↑↑↑↑ Newer Toots End ↑↑↑↑↑↑" + "   ========", fg('green'))
+# aliases
+tootstream.add_command(thread, 'history')
+tootstream.add_command(thread, 'detail')
 
 
-@command
-def note(rest):
+@tootstream.command( 'note', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show notification timeline' )
+def note():
     """Displays the Notifications timeline."""
     mastodon = get_active_mastodon()
     for note in reversed(mastodon.notifications()):
@@ -528,202 +671,106 @@ def note(rest):
 
         # blank line
         print('')
+# aliases
+tootstream.add_command(note, 'n')
 
 
-@command
-def search(rest):
+@tootstream.command( 'whois', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='search for a user' )
+@click.argument('username', metavar='<user>')
+def whois(username):
+    """Search for a user."""
+    mastodon = get_active_mastodon()
+    users = mastodon.account_search(username)
+
+    for user in users:
+        printUser(user)
+# aliases
+tootstream.add_command(whois, 'who')
+
+
+@tootstream.command( 'whatis', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='search for a hashtag' )
+@click.argument('tag', metavar='<tag>')
+def whatis(tag):
+    """Search for a hashtag."""
+    mastodon = get_active_mastodon()
+    for toot in reversed(mastodon.timeline_hashtag(tag)):
+        printTimelineToot(toot, mastodon)
+# aliases
+tootstream.add_command(whatis, 'what')
+
+
+@tootstream.command( 'search', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='search #tag|@user' )
+@click.argument('query', metavar='<query>')
+def search(query):
     """Search for a #tag or @user."""
     mastodon = get_active_mastodon()
     usage = str( "  usage: search #tagname\n" +
                  "         search @username" )
     try:
-        indicator = rest[:1]
-        query = rest[1:]
+        indicator = query[:1]
+        query = query[1:]
     except:
         cprint(usage, fg('red'))
         return
 
     # @ user search
     if indicator == "@" and not query == "":
-        users = mastodon.account_search(query)
-
-        for user in users:
-            printUser(user)
+        click.get_current_context().invoke(whois, username=query)
     # end @
 
     # # hashtag search
     elif indicator == "#" and not query == "":
-        for toot in reversed(mastodon.timeline_hashtag(query)):
-            display_name = "  " + toot['account']['display_name']
-            username = " @" + toot['account']['username'] + " "
-            reblogs_count = "  ♺:" + str(toot['reblogs_count'])
-            favourites_count = " ♥:" + str(toot['favourites_count']) + " "
-            toot_id = str(IDS.to_local(toot['id']))
-
-            # Prints individual toot/tooter info
-            cprint(display_name, fg('green'), end="",)
-            cprint(username + toot['created_at'], fg('yellow'))
-            cprint(reblogs_count + favourites_count, fg('cyan'), end="")
-            cprint(toot_id, fg('red') + attr('bold'))
-
-            # Shows boosted toots as well
-            if toot['reblog']:
-                username = "  Boosted @" + toot['reblog']['account']['acct'] +": "
-                cprint(username, fg('blue'), end='')
-                content = get_content(toot['reblog'])
-            else:
-                content = get_content(toot)
-
-            print(content + "\n")
+        click.get_current_context().invoke(whatis, tag=query)
     # end #
 
     else:
+        # FIXME: should do mastodon.content_search() here
         cprint("  Invalid format.\n"+usage, fg('red'))
 
     return
+# aliases
+tootstream.add_command(search, 's')
 
 
-@command
-def quit(rest):
-    """Ends the program."""
-    sys.exit("Goodbye!")
-
-
-@command
-def info(rest):
+@tootstream.command( 'info', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='info about your account' )
+def info():
     """Prints your user info."""
     mastodon = get_active_mastodon()
     user = mastodon.account_verify_credentials()
     printUser(user)
+# aliases
+tootstream.add_command(info, 'me')
 
 
-@command
-def delete(rest):
+@tootstream.command( 'delete', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='delete a toot' )
+@click.argument('tootid', metavar='<id>')
+def delete(tootid):
     """Deletes your toot by ID"""
     mastodon = get_active_mastodon()
-    rest = IDS.to_global(rest)
-    if rest is None:
+    tootid = IDS.to_global(tootid)
+    if tootid is None:
         return print_error("error: invalid ID.")
-    mastodon.status_delete(rest)
-    print("Poof! It's gone.")
+    mastodon.status_delete(tootid)
+    print("  Poof! It's gone.")
+# aliases
+tootstream.add_command(delete, 'del')
+tootstream.add_command(delete, 'rm')
 
 
-@command
-def profile(rest):
-    """Profile operations: create, load, remove, list."""
-    global cfg
-    command = rest.split(' ')
-    usage = str("  usage: profile load [profilename]\n" +
-                "         profile new [profilename [email [password]]]\n" +
-                "         profile del [profilename]\n" +
-                "         profile list")
-
-    def profile_error(error):
-        cprint("  "+error, fg('red'))
-        return
-
-    try:
-        profile = command[1]
-    except IndexError:
-        profile = ""
-
-    # load subcommand
-    if command[0] in ["load"]:
-        if profile == "":
-            profile = input("  Profile name: ")
-
-        if profile in get_known_profiles():
-            # shortcut for preexisting profiles
-            try:
-                instance, client_id, client_secret, token = get_profile_values(profile)
-            except:
-                return profile_error("Invalid or corrupt profile")
-
-            try:
-                newmasto = Mastodon(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    access_token=token,
-                    api_base_url="https://" + instance)
-            except:
-                return profile_error("Mastodon error")
-
-            # update stuff
-            user = newmasto.account_verify_credentials()
-            set_prompt("[@" + str(user['username']) + " (" + profile + ")]: ")
-            set_active_profile(profile)
-            set_active_mastodon(newmasto)
-            cprint("  Profile " + profile + " loaded", fg('green'))
-            return
-        else:
-            profile_error("Profile " + profile + " doesn't seem to exist")
-            print_profiles()
-            return
-    # end load
-
-    # new/create subcommand
-    elif command[0] in ["new", "add", "create"]:
-        if profile == "":
-            profile = input("  Profile name: ")
-
-        if profile in RESERVED:
-            return profile_error("Illegal profile name: " + profile)
-        elif profile in get_known_profiles():
-            return profile_error("Profile " + profile + " exists")
-
-        instance, client_id, client_secret, token = parse_or_input_profile(profile)
-        try:
-            newmasto = Mastodon(
-                client_id=client_id,
-                client_secret=client_secret,
-                access_token=token,
-                api_base_url="https://" + instance)
-        except:
-            return profile_error("Mastodon error")
-
-        # update stuff
-        cfg[profile] = {
-            'instance': instance,
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'token': token
-        }
-        user = newmasto.account_verify_credentials()
-        set_prompt("[@" + str(user['username']) + " (" + profile + ")]: ")
-        set_active_profile(profile)
-        set_active_mastodon(newmasto)
-        cprint("  Profile " + profile + " loaded", fg('green'))
-        return
-    # end new/create
-
-    # delete subcommand
-    elif command[0] in ["delete", "del", "rm", "remove"]:
-        if profile in [RESERVED, "default"]:
-            return profile_error("Illegal profile name: " + profile)
-        elif profile == "":
-            profile = input("  Profile name: ")
-
-        cfg.remove_section(profile)
-        save_config()
-        cprint("  Poof! It's gone.", fg('blue'))
-        if profile == get_active_profile():
-            set_active_profile("")
-        return
-    # end delete
-
-    # list subcommand
-    elif command[0] in ["ls", "list"]:
-        print_profiles()
-        return
-    # end list
-
-    # no subcommand; print usage
-    cprint(usage, fg('red'))
-    return
-
-
-@command
-def followers(rest):
+@tootstream.command( 'followers', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='list who follows you' )
+def followers():
     """Lists users who follow you."""
     mastodon = get_active_mastodon()
     user = mastodon.account_verify_credentials()
@@ -735,8 +782,10 @@ def followers(rest):
         printUsersShort(users)
 
 
-@command
-def following(rest):
+@tootstream.command( 'following', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='list who you follow' )
+def following():
     """Lists users you follow."""
     mastodon = get_active_mastodon()
     user = mastodon.account_verify_credentials()
@@ -748,8 +797,10 @@ def following(rest):
         printUsersShort(users)
 
 
-@command
-def blocks(rest):
+@tootstream.command( 'blocks', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='list users you block' )
+def blocks():
     """Lists users you have blocked."""
     mastodon = get_active_mastodon()
     users = mastodon.blocks()
@@ -760,8 +811,10 @@ def blocks(rest):
         printUsersShort(users)
 
 
-@command
-def mutes(rest):
+@tootstream.command( 'mutes', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='list users you mute' )
+def mutes():
     """Lists users you have muted."""
     mastodon = get_active_mastodon()
     users = mastodon.mutes()
@@ -772,8 +825,10 @@ def mutes(rest):
         printUsersShort(users)
 
 
-@command
-def requests(rest):
+@tootstream.command( 'requests', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='list requests to follow you' )
+def requests():
     """Lists your incoming follow requests."""
     mastodon = get_active_mastodon()
     users = mastodon.follow_requests()
@@ -786,11 +841,14 @@ def requests(rest):
         cprint("   or 'reject <id>' to reject", fg('magenta'))
 
 
-@command
-def block(rest):
+@tootstream.command( 'block', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='block a user' )
+@click.argument('username', metavar='<user>')
+def block(username):
     """Blocks a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -803,13 +861,18 @@ def block(rest):
                 cprint("  user " + str(userid) + " is now blocked", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
+# aliases
+tootstream.add_command(block, 'bl')
 
 
-@command
-def unblock(rest):
+@tootstream.command( 'unblock', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='unblock a user' )
+@click.argument('username', metavar='<user>')
+def unblock(username):
     """Unblocks a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -824,11 +887,14 @@ def unblock(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def follow(rest):
+@tootstream.command( 'follow', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='follow a user' )
+@click.argument('username', metavar='<user>')
+def follow(username):
     """Follows an account by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -843,11 +909,14 @@ def follow(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def unfollow(rest):
+@tootstream.command( 'unfollow', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='unfollow a user' )
+@click.argument('username', metavar='<user>')
+def unfollow(username):
     """Unfollows an account by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -862,11 +931,14 @@ def unfollow(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def mute(rest):
+@tootstream.command( 'mute', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='mute a user' )
+@click.argument('username', metavar='<user>')
+def mute(username):
     """Mutes a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -881,11 +953,14 @@ def mute(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def unmute(rest):
+@tootstream.command( 'unmute', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='unmute a user' )
+@click.argument('username', metavar='<user>')
+def unmute(username):
     """Unmutes a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -900,11 +975,14 @@ def unmute(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def accept(rest):
+@tootstream.command( 'accept', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='accept a follow request' )
+@click.argument('username', metavar='<user>')
+def accept(username):
     """Accepts a user's follow request by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -924,11 +1002,14 @@ def accept(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
-@command
-def reject(rest):
+@tootstream.command( 'reject', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='reject a follow request' )
+@click.argument('username', metavar='<user>')
+def reject(username):
     """Rejects a user's follow request by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(rest)
+    userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
         printUsersShort(userid)
@@ -948,6 +1029,166 @@ def reject(rest):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 
 
+@tootstream.group( 'profile', short_help='profile load|create|remove|list',
+                   cls=TootStreamGroup,
+                   context_settings=CONTEXT_SETTINGS,
+                   invoke_without_command=True,
+                   no_args_is_help=True,
+                   options_metavar='',
+                   subcommand_metavar='<command>' )
+def profile():
+    """Profile management operations: create, load, remove, list.
+    Additions and removals will save the configuration file."""
+    pass
+
+
+@profile.command( 'help', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='get help for a command' )
+@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+def profile_help(cmd):
+    """Get details on how to use a command."""
+    ctx = click.get_current_context()
+    if not cmd is None:
+        c = profile.get_command(ctx, cmd)
+        click.echo(c.get_help(ctx))
+        return
+    click.echo(profile.get_help(ctx))
+
+
+@profile.command( 'list', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='list known profiles' )
+def profile_list():
+    """List known profiles."""
+    print_profiles()
+    return
+# aliases
+profile.add_command(profile_list, 'ls')
+
+
+@profile.command( 'add', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='add a profile' )
+@click.argument('profile', metavar='[<profile>', required=False, default=None)
+@click.argument('instance', metavar='[<hostname>', required=False, default=None)
+@click.argument('email', metavar='[<email>', required=False, default=None)
+@click.argument('password', metavar='[<passwd>]]]]', required=False, default=None)
+def profile_add(profile, instance, email, password):
+    """Create a new profile.
+
+    \b
+        profile:  name of the profile to add
+       hostname:  instance this account is on
+          email:  email to log into the account
+         passwd:  password to the account (UNSAFE -- this will be visible)"""
+    if profile is None:
+        profile = input("  Profile name: ")
+
+    if profile in RESERVED:
+        print_error("Illegal profile name: " + profile)
+        return
+    elif profile in get_known_profiles():
+        print_error("Profile " + profile + " exists")
+        return
+
+    instance, client_id, client_secret, token = parse_or_input_profile(profile)
+    try:
+        newmasto = Mastodon(
+            client_id=client_id,
+            client_secret=client_secret,
+            access_token=token,
+            api_base_url="https://" + instance)
+    except:
+        print_error("Mastodon error")
+        return
+
+    # update stuff
+    cfg[profile] = {
+        'instance': instance,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'token': token
+    }
+    user = newmasto.account_verify_credentials()
+    set_prompt("[@" + str(user['username']) + " (" + profile + ")]: ")
+    set_active_profile(profile)
+    set_active_mastodon(newmasto)
+    cprint("  Profile " + profile + " loaded", fg('green'))
+    return
+# aliases
+profile.add_command(profile_add, 'new')
+profile.add_command(profile_add, 'create')
+
+
+@profile.command( 'del', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='delete a profile' )
+@click.argument('profile', metavar='<profile>', required=False, default=None)
+def profile_del(profile):
+    """Delete a profile."""
+    if profile is None:
+        profile = input("  Profile name: ")
+
+    if profile in [RESERVED, "default"]:
+        print_error("Illegal profile name: " + profile)
+        return
+
+    cfg.remove_section(profile)
+    save_config()
+    cprint("  Poof! It's gone.", fg('blue'))
+    if profile == get_active_profile():
+        set_active_profile("")
+    return
+# aliases
+profile.add_command(profile_del, 'delete')
+profile.add_command(profile_del, 'rm')
+profile.add_command(profile_del, 'remove')
+
+
+@profile.command( 'load', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='load a profile' )
+@click.argument('profile', metavar='<profile>', required=False, default=None)
+def profile_load(profile):
+    """Load a different profile."""
+    if profile is None:
+        profile = input("  Profile name: ")
+
+    if profile in get_known_profiles():
+        # shortcut for preexisting profiles
+        try:
+            instance, client_id, client_secret, token = get_profile_values(profile)
+        except:
+            print_error("Invalid or corrupt profile")
+            return
+
+        try:
+            newmasto = Mastodon(
+                client_id=client_id,
+                client_secret=client_secret,
+                access_token=token,
+                api_base_url="https://" + instance)
+        except:
+            print_error("Mastodon error")
+            return
+
+        # update stuff
+        user = newmasto.account_verify_credentials()
+        set_prompt("[@" + str(user['username']) + " (" + profile + ")]: ")
+        set_active_profile(profile)
+        set_active_mastodon(newmasto)
+        cprint("  Profile " + profile + " loaded", fg('green'))
+        return
+    else:
+        print_error("Profile " + profile + " doesn't seem to exist")
+        print_profiles()
+
+    return
+# aliases
+profile.add_command(profile_load, 'open')
+
+
 #####################################
 ######### END COMMAND BLOCK #########
 #####################################
@@ -956,11 +1197,10 @@ def reject(rest):
 #####################################
 ######## MAIN #######################
 #####################################
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option( '--instance', '-i', metavar='<string>',
+@click.option( '--instance', '-i', metavar='<hostname>',
                help='Hostname of the instance to connect' )
-@click.option( '--email', '-e', metavar='<string>',
+@click.option( '--email', '-e', metavar='<email>',
                help='Email to login' )
 @click.option( '--password', '-p', metavar='<PASSWD>',
                help='Password to login (UNSAFE)' )
@@ -968,7 +1208,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
                type=click.Path(exists=False, readable=True),
                default='~/.config/tootstream/tootstream.conf',
                help='Location of alternate configuration file to load' )
-@click.option( '--profile', '-P', metavar='<string>', default='default',
+@click.option( '--profile', '-P', metavar='<profile>', default='default',
                help='Name of profile for saved credentials (default)' )
 def main(instance, email, password, config, profile):
     configpath = os.path.expanduser(config)
@@ -1002,9 +1242,6 @@ def main(instance, email, password, config, profile):
     save_config()
 
 
-    say_error = lambda a: cprint("Invalid command. Use 'help' for a list of commands.",
-            fg('white'))
-
     cprint("Welcome to tootstream! Two-Factor-Authentication is currently not supported.", fg('blue'))
     print("You are connected to ", end="")
     cprint(instance, fg('green') + attr('bold'))
@@ -1012,18 +1249,17 @@ def main(instance, email, password, config, profile):
     print("\n")
 
     user = mastodon.account_verify_credentials()
-    set_prompt("[@" + str(user['username']) + " (" + profile + ")]: ")
+    prompt = "[@" + str(user['username']) + " (" + profile + ")]: "
 
-    while True:
-        command = input(get_prompt()).split(' ', 1)
-        rest = ""
-        try:
-            rest = command[1]
-        except IndexError:
-            pass
-        command = command[0]
-        cmd_func = commands.get(command, say_error)
-        cmd_func(rest)
+    # setup shell
+    ctx = tootstream.make_context('tootstream', [], parent=click.get_current_context())
+    shell = make_click_shell(ctx, prompt=prompt, intro='', hist_file='/dev/null')
+    # push shell object onto the context to enable dynamic prompt
+    ctx.meta[KEYSHELL] = shell
+    set_prompt(prompt)
+    # and go
+    shell.cmdloop()
+    print("Goodbye!")
 
 
 if __name__ == '__main__':
