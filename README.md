@@ -5,7 +5,7 @@ tootstream currently does not support 2FA.
 
 This branch has been heavily modified.  You can find the original at
 [magicalraccoon/tootstream](https://github.com/magicalraccoon/tootstream).
-Please report problems with this branch as issues here and not on the upstream repo.
+Please report problems with this branch here and not on the upstream repo.
 
 ## Using tootstream
 

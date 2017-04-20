@@ -1,6 +1,10 @@
 import click
 
 
+CONTEXT_SETTINGS = dict( help_option_names=['-h', '--help'],
+                         max_content_width=100 )
+
+
 class TootStreamCmd(click.Command):
     """Overload click.Command to customize help formatting."""
     hidden = False
@@ -76,3 +80,11 @@ class TootStreamGroup(click.Group, TootStreamCmd):
                 formatter.write_dl(rows)
 
 
+class TootStreamCmdCollection(click.CommandCollection):
+    """Overload click.CmdCollection to customize help formatting."""
+    def __init__(self, *args, **kwargs):
+        super(TootStreamCmdCollection, self).__init__(*args, **kwargs)
+
+
+#from .toot_utils import *
+#from .toot_print import *
