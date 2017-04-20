@@ -154,7 +154,7 @@ def toot(text):
     post_text = ' '.join(text)
     mastodon.toot(post_text)
     cprint("You tooted: ", fg('magenta') + attr('bold'), end="")
-    cprint(rest, fg('magenta') + attr('bold') + attr('underlined'))
+    cprint(post_text, fg('magenta') + attr('bold') + attr('underlined'))
 # aliases
 _tootstream.add_command(toot, 't')
 

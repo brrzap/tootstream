@@ -31,9 +31,13 @@ $ ./tootstream.py
 
 * multiple accounts via profiles
 * follow/block/mute list management commands
+* tag/username search commands
+* thread/history command
+* command aliases
 * tab completion for commands
-* hashbang
-* won't change your background color because ugghhh
+* hashbang, modules
+* remove background colors because ugghhh (light fontcolor + light bkgrnd color = unreadable)
+* remove localIDs on toots (`https:// + yourinstance + /@username/ + rawID` = actual webpage)
 
 ----
 
