@@ -293,6 +293,66 @@ def local():
 _tootstream.add_command(local, 'l')
 
 
+@_tootstream.command( 'faves', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show your favourites' )
+def faves():
+    """Displays posts you've favourited."""
+    mastodon = get_active_mastodon()
+    for toot in reversed(mastodon.favourites()):
+        printTimelineToot(toot)
+# aliases
+
+
+### TODO: this is mentioned in Mastodon.py but doesn't
+### seem to be a real API endpoint.  leaving this here
+### for consideration until i can dig into the API docs.
+###
+#@_tootstream.command( 'mentions', options_metavar='',
+#                     cls=TootStreamCmd,
+#                     short_help='show your mentions' )
+#def mentions():
+#    """Displays posts mentioning you."""
+#    mastodon = get_active_mastodon()
+#    for toot in reversed(mastodon.timeline_mentions()):
+#        printTimelineToot(toot)
+## aliases
+
+
+@_tootstream.command( 'timeline', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show a timeline of toots from a user' )
+@click.argument('username', metavar='<user>')
+def timeline(username):
+    """Displays toots you've tooted."""
+    mastodon = get_active_mastodon()
+    userid = get_userid(username)
+    if isinstance(userid, list):
+        cprint("  multiple matches found:", fg('red'))
+        printUsersShort(userid)
+    elif userid == -1:
+        cprint("  username not found", fg('red'))
+    else:
+        for toot in reversed(mastodon.account_statuses(userid)):
+            printTimelineToot(toot)
+# aliases
+_tootstream.add_command(timeline, 'tootsfrom')
+
+
+@_tootstream.command( 'mine', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show your toots' )
+def mine():
+    """Displays toots you've tooted."""
+    mastodon = get_active_mastodon()
+    # TODO: user's creds should really be stored somewhere
+    thatsme = mastodon.account_verify_credentials()
+    # no specific api for user's own toot timeline
+    click.get_current_context().invoke(timeline, username=thatsme['id'])
+# aliases
+_tootstream.add_command(mine, 'mytoots')
+
+
 @_tootstream.command( 'thread', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='thread history of a toot' )

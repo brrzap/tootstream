@@ -32,6 +32,7 @@ $ ./tootstream.py
 * multiple accounts via profiles
 * follow/block/mute list management commands
 * tag/username search commands
+* list favourites, user timelines
 * thread/history command
 * command aliases
 * tab completion for commands
