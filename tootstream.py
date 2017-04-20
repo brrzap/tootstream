@@ -159,6 +159,34 @@ def toot(text):
 _tootstream.add_command(toot, 't')
 
 
+@_tootstream.command( 'reply', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='reply to a toot' )
+@click.argument('tootid', metavar='<id>')
+@click.argument('text', nargs=-1, metavar='<text>')
+def reply(tootid, text):
+    """Reply to a toot by ID."""
+    mastodon = get_active_mastodon()
+    reply_text = ' '.join(text)
+    #parent_id = IDS.to_global(tootid)
+    parent_id = tootid
+    if parent_id is None:
+        return print_error("error: invalid ID.")
+    parent_toot = mastodon.status(parent_id)
+    mentions = [i['acct'] for i in parent_toot['mentions']]
+    mentions.append(parent_toot['account']['acct'])
+    mentions = ["@%s" % i for i in list(set(mentions))] # Remove dups
+    mentions = ' '.join(mentions)
+    # TODO: Ensure that content warning visibility carries over to reply
+    reply_toot = mastodon.status_post('%s %s' % (mentions, reply_text),
+                                      in_reply_to_id=int(parent_id))
+    msg = "  Replied with: " + get_content(reply_toot)
+    cprint(msg, fg('red'))
+# aliases
+_tootstream.add_command(reply, 'r')
+_tootstream.add_command(reply, 'rep')
+
+
 @_tootstream.command( 'boost', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='boost a toot' )
@@ -210,34 +238,6 @@ def fav(tootid):
     cprint(msg, fg('red'))
 # aliases
 _tootstream.add_command(fav, 'star')
-
-
-@_tootstream.command( 'reply', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='reply to a toot' )
-@click.argument('tootid', metavar='<id>')
-@click.argument('text', nargs=-1, metavar='<text>')
-def reply(tootid, text):
-    """Reply to a toot by ID."""
-    mastodon = get_active_mastodon()
-    reply_text = ' '.join(text)
-    #parent_id = IDS.to_global(tootid)
-    parent_id = tootid
-    if parent_id is None:
-        return print_error("error: invalid ID.")
-    parent_toot = mastodon.status(parent_id)
-    mentions = [i['acct'] for i in parent_toot['mentions']]
-    mentions.append(parent_toot['account']['acct'])
-    mentions = ["@%s" % i for i in list(set(mentions))] # Remove dups
-    mentions = ' '.join(mentions)
-    # TODO: Ensure that content warning visibility carries over to reply
-    reply_toot = mastodon.status_post('%s %s' % (mentions, reply_text),
-                                      in_reply_to_id=int(parent_id))
-    msg = "  Replied with: " + get_content(reply_toot)
-    cprint(msg, fg('red'))
-# aliases
-_tootstream.add_command(reply, 'r')
-_tootstream.add_command(reply, 'rep')
 
 
 @_tootstream.command( 'unfav', options_metavar='',
@@ -476,271 +476,12 @@ _tootstream.add_command(delete, 'del')
 _tootstream.add_command(delete, 'rm')
 
 
-@_tootstream.command( 'followers', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='list who follows you' )
-def followers():
-    """Lists users who follow you."""
-    mastodon = get_active_mastodon()
-    user = mastodon.account_verify_credentials()
-    users = mastodon.account_followers(user['id'])
-    if not users:
-        cprint("  You don't have any followers", fg('red'))
-    else:
-        cprint("  Your followers:", fg('magenta'))
-        printUsersShort(users)
-
-
-@_tootstream.command( 'following', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='list who you follow' )
-def following():
-    """Lists users you follow."""
-    mastodon = get_active_mastodon()
-    user = mastodon.account_verify_credentials()
-    users = mastodon.account_following(user['id'])
-    if not users:
-        cprint("  You're safe!  There's nobody following you", fg('red'))
-    else:
-        cprint("  People following you:", fg('magenta'))
-        printUsersShort(users)
-
-
-@_tootstream.command( 'blocks', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='list users you block' )
-def blocks():
-    """Lists users you have blocked."""
-    mastodon = get_active_mastodon()
-    users = mastodon.blocks()
-    if not users:
-        cprint("  You haven't blocked anyone (... yet)", fg('red'))
-    else:
-        cprint("  You have blocked:", fg('magenta'))
-        printUsersShort(users)
-
-
-@_tootstream.command( 'mutes', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='list users you mute' )
-def mutes():
-    """Lists users you have muted."""
-    mastodon = get_active_mastodon()
-    users = mastodon.mutes()
-    if not users:
-        cprint("  You haven't muted anyone (... yet)", fg('red'))
-    else:
-        cprint("  You have muted:", fg('magenta'))
-        printUsersShort(users)
-
-
-@_tootstream.command( 'requests', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='list requests to follow you' )
-def requests():
-    """Lists your incoming follow requests."""
-    mastodon = get_active_mastodon()
-    users = mastodon.follow_requests()
-    if not users:
-        cprint("  You have no incoming requests", fg('red'))
-    else:
-        cprint("  These users want to follow you:", fg('magenta'))
-        printUsersShort(users)
-        cprint("  run 'accept <id>' to accept", fg('magenta'))
-        cprint("   or 'reject <id>' to reject", fg('magenta'))
-
-
-@_tootstream.command( 'block', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='block a user' )
-@click.argument('username', metavar='<user>')
-def block(username):
-    """Blocks a user by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_block(userid)
-            if relations['blocking']:
-                cprint("  user " + str(userid) + " is now blocked", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-# aliases
-_tootstream.add_command(block, 'bl')
-
-
-@_tootstream.command( 'unblock', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='unblock a user' )
-@click.argument('username', metavar='<user>')
-def unblock(username):
-    """Unblocks a user by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_unblock(userid)
-            if not relations['blocking']:
-                cprint("  user " + str(userid) + " is now unblocked", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'follow', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='follow a user' )
-@click.argument('username', metavar='<user>')
-def follow(username):
-    """Follows an account by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_follow(userid)
-            if relations['following']:
-                cprint("  user " + str(userid) + " is now followed", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'unfollow', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='unfollow a user' )
-@click.argument('username', metavar='<user>')
-def unfollow(username):
-    """Unfollows an account by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_unfollow(userid)
-            if not relations['following']:
-                cprint("  user " + str(userid) + " is now unfollowed", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'mute', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='mute a user' )
-@click.argument('username', metavar='<user>')
-def mute(username):
-    """Mutes a user by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_mute(userid)
-            if relations['muting']:
-                cprint("  user " + str(userid) + " is now muted", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'unmute', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='unmute a user' )
-@click.argument('username', metavar='<user>')
-def unmute(username):
-    """Unmutes a user by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            relations = mastodon.account_unmute(userid)
-            if not relations['muting']:
-                cprint("  user " + str(userid) + " is now unmuted", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'accept', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='accept a follow request' )
-@click.argument('username', metavar='<user>')
-def accept(username):
-    """Accepts a user's follow request by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            user = mastodon.follow_request_authorize(userid)
-            # a more thorough check would be to call
-            # mastodon.account_relationships(user['id'])
-            # and check the returned data
-            # here we're lazy and assume we're good if the
-            # api return matches the request
-            if user['id'] == userid:
-                cprint("  user " + str(userid) + "'s request is accepted", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
-@_tootstream.command( 'reject', options_metavar='',
-                     cls=TootStreamCmd,
-                     short_help='reject a follow request' )
-@click.argument('username', metavar='<user>')
-def reject(username):
-    """Rejects a user's follow request by username or id."""
-    mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
-        try:
-            user = mastodon.follow_request_reject(userid)
-            # a more thorough check would be to call
-            # mastodon.account_relationships(user['id'])
-            # and check the returned data
-            # here we're lazy and assume we're good if the
-            # api return matches the request
-            if user['id'] == userid:
-                cprint("  user " + str(userid) + "'s request is rejected", fg('blue'))
-        except:
-            cprint("  ... well, it *looked* like it was working ...", fg('red'))
-
-
 import tootstream.toot_cmds_settings
-#import tootstream.toot_cmds_relations
-_tootstream.add_command(tootstream.toot_cmds_settings.profile)
+import tootstream.toot_cmds_relations
+_tootstream.add_command(tootstream.toot_cmds_settings._profile)
+_tootstream.add_command(tootstream.toot_cmds_relations._follow)
+_tootstream.add_command(tootstream.toot_cmds_relations._block)
+_tootstream.add_command(tootstream.toot_cmds_relations._mute)
 
 # if using a CommandCollection ....
 #_tootstreamCommands.add_source(_tootstream)

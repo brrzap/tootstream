@@ -9,6 +9,9 @@ from .toot_utils import RESERVED
 #from .toot_print import cprint, print_error, print_profiles
 
 
+#####################################
+###### PROFILE MANAGEMENT CMDS ######
+#####################################
 @click.group(      'profile', short_help='profile load|create|remove|list',
                    cls=TootStreamGroup,
                    context_settings=CONTEXT_SETTINGS,
@@ -16,13 +19,13 @@ from .toot_utils import RESERVED
                    no_args_is_help=True,
                    options_metavar='',
                    subcommand_metavar='<command>' )
-def profile():
+def _profile():
     """Profile management operations: create, load, remove, list.
     Additions and removals will save the configuration file."""
     pass
 
 
-@profile.command( 'help', options_metavar='',
+@_profile.command( 'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
 @click.argument('cmd', metavar='<cmd>', required=False, default=None)
@@ -30,13 +33,13 @@ def profile_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
-        c = profile.get_command(ctx, cmd)
+        c = _profile.get_command(ctx, cmd)
         click.echo(c.get_help(ctx))
         return
-    click.echo(profile.get_help(ctx))
+    click.echo(_profile.get_help(ctx))
 
 
-@profile.command( 'list', options_metavar='',
+@_profile.command( 'list', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='list known profiles' )
 def profile_list():
@@ -44,10 +47,10 @@ def profile_list():
     print_profiles()
     return
 # aliases
-profile.add_command(profile_list, 'ls')
+_profile.add_command(profile_list, 'ls')
 
 
-@profile.command( 'add', options_metavar='',
+@_profile.command( 'add', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='add a profile' )
 @click.argument('profile', metavar='[<profile>', required=False, default=None)
@@ -98,11 +101,11 @@ def profile_add(profile, instance, email, password):
     cprint("  Profile " + profile + " loaded", fg('green'))
     return
 # aliases
-profile.add_command(profile_add, 'new')
-profile.add_command(profile_add, 'create')
+_profile.add_command(profile_add, 'new')
+_profile.add_command(profile_add, 'create')
 
 
-@profile.command( 'del', options_metavar='',
+@_profile.command( 'del', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='delete a profile' )
 @click.argument('profile', metavar='<profile>', required=False, default=None)
@@ -123,12 +126,12 @@ def profile_del(profile):
         set_active_profile("")
     return
 # aliases
-profile.add_command(profile_del, 'delete')
-profile.add_command(profile_del, 'rm')
-profile.add_command(profile_del, 'remove')
+_profile.add_command(profile_del, 'delete')
+_profile.add_command(profile_del, 'rm')
+_profile.add_command(profile_del, 'remove')
 
 
-@profile.command( 'load', options_metavar='',
+@_profile.command( 'load', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='load a profile' )
 @click.argument('profile', metavar='<profile>', required=False, default=None)
@@ -168,6 +171,6 @@ def profile_load(profile):
 
     return
 # aliases
-profile.add_command(profile_load, 'open')
+_profile.add_command(profile_load, 'open')
 
 
