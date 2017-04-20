@@ -1,4 +1,4 @@
-# tootstream
+# tootstream (*experimental*)
 A command line interface for interacting with Mastodon instances written in python.
 
 tootstream currently does not support 2FA.
@@ -23,7 +23,19 @@ $ python3 setup.py install
 $ ./tootstream.py
 ```
 
-###### Close with: `$ deactivate`
+##### Close with: `$ deactivate`
+
+----
+
+#### experimental features
+
+* multiple accounts via profiles
+* follow/block/mute list management commands
+* tab completion for commands
+* hashbang
+* won't change your background color because ugghhh
+
+----
 
 #### Inspired by Rainbowstream
 https://github.com/DTVD/rainbowstream
