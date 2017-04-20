@@ -760,7 +760,7 @@ def main(instance, email, password, config, profile):
     save_config()
 
 
-    say_error = lambda a, b: cprint("Invalid command. Use 'help' for a list of commands.",
+    say_error = lambda a: cprint("Invalid command. Use 'help' for a list of commands.",
             fg('white'))
 
     cprint("Welcome to tootstream! Two-Factor-Authentication is currently not supported.", fg('blue'))
