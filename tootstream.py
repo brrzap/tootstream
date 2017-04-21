@@ -536,6 +536,50 @@ _tootstream.add_command(delete, 'del')
 _tootstream.add_command(delete, 'rm')
 
 
+@_tootstream.command( 'raw', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='raw data about a user or toot' )
+@click.option( '--user', '-u', flag_value='user',
+               help='argument is a userid' )
+#@click.option( '--get', '-g', flag_value='get',
+#               help='argument is an API enpoint' )
+@click.argument('thisid', metavar='<id>')
+def raw(thisid, user):
+    """Displays the API's view of a toot or user.  Assumes
+    the argument is a tootID unless it begins with @ or /.
+
+    \b
+       -u, --user    force treat argument as a user
+
+    Ex:   raw 100                   # gets toot with ID 100
+          raw @foo                  # gets user foo
+          raw -u 100                # gets user with ID 100
+          raw /api/v1/accounts/100  # gets user with ID 100
+    """
+    #  -g, --get    argument is an API endpoint (ie /api/v1/foo)
+    mastodon = get_active_mastodon()
+
+    if user or thisid[:1] == "@":
+        userid = get_userid(thisid)
+        user = mastodon.account(userid)
+        print(str(user))
+    elif thisid[:1] == "/":
+        # lots of crash potential here
+        try:
+            response = mastodon._Mastodon__api_request('GET', thisid)
+            print(str(response))
+        except:
+            pass
+    else:
+        try:
+            #tootid = IDS.to_global(tootid)
+            thisid = int(thisid)
+        except:
+            return print_error("are you sure '" + str(thisid) + "' is a real tootID?")
+        print(str(mastodon.status(thisid)))
+#aliases
+
+
 import tootstream.toot_cmds_settings
 import tootstream.toot_cmds_relations
 _tootstream.add_command(tootstream.toot_cmds_settings._profile)
