@@ -18,10 +18,11 @@ GLYPH_DIRECT    = '\U0001f4e7'  # envelopes: '\U0001f4e7' '\U0001f4e9' '\U0001f4
 VISIBILITY = { 'public':   GLYPH_PUBLIC,
                'unlisted': GLYPH_UNLISTED,
                'private':  GLYPH_PRIVATE,
-               'direct':   GLYPH_DIRECT,       # TODO: verify with api, maybe Mastodon.py lacks support
+               'direct':   GLYPH_DIRECT,
                'unknown':  GLYPH_PINEAPPLE }
 _indent = "  "
 toot_parser = TootParser(indent='  ', width=75)
+random.seed()
 
 
 ### text wrapping
@@ -58,6 +59,13 @@ def _format_username(user):
         return "@" + user['acct'] + " " + GLYPH_LOCK
     return "@" + user['acct']
 
+def _style_name_line(user, style1=[], style2=None, prefix='', suffix=''):
+    # [prefix] 'Display Name' @user@instance [suffix]
+    # <========style1         style2================>
+    if not style2: style2 = style1
+    return ' '.join(( stylize(prefix + _format_display_name(user), style1),
+                      stylize(_format_username(user) + suffix, style2) ))
+
 
 ### Toot dict formatting
 def _format_boost_count(toot):
@@ -65,6 +73,9 @@ def _format_boost_count(toot):
 
 def _format_faves_count(toot):
     return GLYPH_FAVE + ":" + str(toot['favourites_count'])
+
+def _format_counts(toot):
+    return _format_boost_count(toot) + " " + _format_faves_count(toot)
 
 def _format_id(tootoruser):
     #toot_id = str(IDS.to_local(toot['id']))
@@ -84,40 +95,64 @@ def _format_media(toot):
     # TODO: implement
     pass
 
+def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefix='', suffix=''):
+    # [prefix] vis:X    ♺:0 ♥:0  id:76642  2017-04-21T18:48:34.000Z [suffix]
+    #  <=======style1   style2   style3    style4=========================>
+    # default all to style1 if not present
+    if not style2: style2 = style1
+    if not style3: style3 = style1
+    if not style4: style4 = style1
+    return '  '.join(( stylize(prefix + _format_visibility(toot), style1, reset=False),
+                       stylize(_format_counts(toot), style2, reset=False),
+                       stylize(_format_id(toot), style3, reset=False),
+                       stylize(_format_time(toot) + suffix, style4, reset=True) ))
+
+
+def _style_tootid_username(toot, style=[], prefix='', suffix=''):
+    # [prefix] id:X from @user@instance [suffix]
+    # <========style===========================>
+    return stylize( prefix + _format_id(toot)
+                    + _format_username(toot['account']) + suffix, style )
+
 
 _pineapple = '\U0001f34d'  # can never have too many
 def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
 
 
-def print_profiles():
-    """Prints existing profile names in a horizontal list."""
+def _print_name_line_solid(user, style=[], end='\n'):
+    print( _indent + _style_name_line(user, style), end )
+    return
+
+
+def _print_id_line_solid(toot, style=[], end='\n'):
+    print( _indent + _style_id_line(toot, style), end )
+    return
+
+
+def printProfiles():
+    """Prints existing profile names in a sorted list."""
     # TODO: make them nice columns
     from .toot_utils import get_active_profile, get_known_profiles
 
     active = get_active_profile()
     inactiveprofiles = get_known_profiles()
-    try:
-        inactiveprofiles.remove(active)
-    except ValueError:
-        # somebody removed the active profile. don't panic.
-        pass
-    # TODO: wrap based on termwidth
-    inactives = ' '.join(inactiveprofiles)
-    cprint(_indent + "*"+active, fg('red'), end="")
-    cprint("  "+inactives, fg('blue'))
+    inactiveprofiles.sort()
+    styledprofs = []
+    for prof in inactiveprofiles:
+        if prof == active:
+            styledprofs.append(stylize("*"+active, fg('red')))
+        else:
+            styledprofs.append(stylize(prof, fg('blue')))
+    print(_indent + ' '.join(styledprofs))
     return
 
 
 def printHistoryToot(toot):
-    """Prints toot nicely with hardcoded colors"""
+    """Prints toot nicely with hardcoded colors."""
     # Prints individual toot/tooter info
-    cprint(_indent + _format_display_name(toot['account']), fg('green'), end=" ")
-    cprint(_format_username(toot['account']), fg('yellow'))
-    cprint(_indent + _format_visibility(toot), fg('blue'), end=" ")
-    cprint(_indent + _format_boost_count(toot) + " " + _format_faves_count(toot), fg('cyan'), end=" ")
-    cprint(_format_id(toot), fg('red'), end=" ")
-    cprint(_format_time(toot), attr('dim'))
+    print( _indent + _style_name_line(toot['account'], fg('green'), fg('yellow')) )
+    print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'))
     content = get_content(toot)
@@ -125,22 +160,17 @@ def printHistoryToot(toot):
 
 
 def printTimelineToot(toot):
+    """Prints toot nicely with randomized username coloring."""
     from .toot_utils import get_active_mastodon
     mastodon = get_active_mastodon()
-    random.seed()
     # Prints individual toot/tooter info
-    cprint(_indent + _format_display_name(toot['account']), fg(random.choice(COLORS)), end=" ")
-    cprint(_format_username(toot['account']), fg('green'))
-    cprint(_indent + _format_visibility(toot), fg('blue'), end=" ")
-    cprint(_indent + _format_boost_count(toot), fg('cyan'), end=" ")
-    cprint(_format_faves_count(toot), fg('yellow'), end=" ")
-    cprint(_format_id(toot), fg('red'), end=" ")
-    cprint(_format_time(toot), attr('dim'))
+    print( _indent + _style_name_line(toot['account'], fg(random.choice(COLORS))) )
+    print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
     content = get_content(toot)
 
     # header for boosted toots
     if toot['reblog']:
-        cprint(_indent + "Boosted " + _format_id(toot['reblog']) + " from " + _format_username(toot['reblog']['account']), fg('blue'), end=":\n")
+        print(_indent + _style_tootid_username(toot, fg('cyan'), prefix='Boosted by ', suffix=':'))
         content = _indent + get_content(toot['reblog'])
         # ignore toot['reblog']['spoiler_text'] here,
         # if it's different there's something very wrong
@@ -148,7 +178,7 @@ def printTimelineToot(toot):
     # header for a reply
     elif toot['in_reply_to_id']:
         repliedToot = mastodon.status(toot['in_reply_to_id'])
-        cprint(_indent + "Replied to " + _format_id(repliedToot) + " from " + _format_username(repliedToot['account']), fg('blue'), end=":\n")
+        print(_indent + _style_tootid_username(repliedToot, fg('blue'), prefix='Replied to ', suffix=':'))
         repliedTootContent = get_content(repliedToot)
         if repliedToot['spoiler_text']:
             cprint(_indent + _indent + _format_spoiler(repliedToot), fg('red'), end=": ")
@@ -160,51 +190,33 @@ def printTimelineToot(toot):
     cprint(content + "\n", fg('white'))
 
 
-def _print_name_line_solid(user, style, end='\n'):
-    cprint( _indent + _format_display_name(user)
-            + " " + _format_username(user), style, end )
-    return
-
-
-def _print_id_line_solid(toot, style, end='\n'):
-    cprint( _indent + _format_visibility(toot)
-            + " " + _format_boost_count(toot)
-            + " " + _format_faves_count(toot)
-            + " " + _format_id(toot)
-            + " " + _format_time(toot), style, end )
-    return
-
-
 def printNotification(note):
-    """ """
+    """Prints colorcoded notifications."""
     # Mentions
     if note['type'] == 'mention':
-        _print_name_line_solid(note['account'], fg('magenta'), end='')
-        cprint(" mentioned you =======", fg('magenta'))
+        print(_indent + _style_name_line(note['account'], fg('magenta'), suffix=' mentioned you ======'))
+        # TODO: this prints whole toot but we really only need the content
         printTimelineToot(note['status'])
 
     # Favorites
     elif note['type'] == 'favourite':
-        _print_name_line_solid(note['account'], fg('green'), end='')
-        cprint(" favorited your status:", fg('green'))
-        _print_id_line_solid(note['status'], fg('green'))
+        print(_indent + _style_name_line(note['account'], fg('green'), suffix=' favorited your status:'))
+        print(_indent + _style_id_line(note['status'], fg('green')))
         if note['status']['spoiler_text']:
             cprint(_indent + _format_spoiler(note['status']), fg('red'))
         cprint(get_content(note['status']), fg('green'))
 
     # Boosts
     elif note['type'] == 'reblog':
-        _print_name_line_solid(note['account'], fg('yellow'), end='')
-        cprint(" boosted your toot:", fg('yellow'))
-        _print_id_line_solid(note['status'], fg('yellow'))
+        print(_indent + _style_name_line(note['account'], fg('yellow'), suffix=' boosted your toot:'))
+        print(_indent + _style_id_line(note['status'], fg('yellow')))
         if note['status']['spoiler_text']:
             cprint(_indent + _format_spoiler(note['status']), fg('red'))
         cprint(get_content(note['status']), fg('yellow'))
 
     # Follows
     elif note['type'] == 'follow':
-        _print_name_line_solid(note['account'], fg('red'), end='')
-        cprint(" followed you!", fg('red'))
+        print(_indent + _style_name_line(note['account'], fg('red'), suffix=' followed you!'))
 
     else:
         print_error("Unknown notification type: "+str(note['type'])+" (id:"+str(note['id'])+")")
@@ -231,19 +243,21 @@ def printUserShort(user):
 
 
 def printUsersShort(users):
+    """Prints a list of users in an abbreviated format."""
     for user in users:
         if not user: continue
         printUserShort(user)
 
 
 def print_error(msg):
+    """Prints an error message in bold red."""
     cprint(msg, fg('red')+attr('bold'))
 
 
 
 __all__ = [ 'cprint',
             'get_content',
-            'print_profiles',
+            'printProfiles',
             'printHistoryToot',
             'printTimelineToot',
             'printNotification',

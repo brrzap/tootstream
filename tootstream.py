@@ -12,7 +12,7 @@ from tootstream import *
 from tootstream.toot_click import CONTEXT_SETTINGS
 from tootstream.toot_utils import *
 from tootstream.toot_print import *
-#from tootstream.toot_print import cprint, print_profiles
+#from tootstream.toot_print import cprint, printProfiles
 #from tootstream import TootParser, TootIdDict, TootStreamCmd, TootStreamGroup, TootStreamCmdCollection
 from click_shell import make_click_shell
 from mastodon import Mastodon

@@ -6,7 +6,7 @@ from .toot_utils import *
 from .toot_print import *
 from .toot_utils import RESERVED
 #from .toot_utils import get_known_profiles, get_active_mastodon, get_active_profile, set_active_mastodon, set_active_profile
-#from .toot_print import cprint, print_error, print_profiles
+#from .toot_print import cprint, print_error, printProfiles
 
 
 #####################################
@@ -44,7 +44,7 @@ def profile_help(cmd):
                   short_help='list known profiles' )
 def profile_list():
     """List known profiles."""
-    print_profiles()
+    printProfiles()
     return
 # aliases
 _profile.add_command(profile_list, 'ls')
@@ -167,7 +167,7 @@ def profile_load(profile):
         return
     else:
         print_error("Profile " + profile + " doesn't seem to exist")
-        print_profiles()
+        printProfiles()
 
     return
 # aliases
