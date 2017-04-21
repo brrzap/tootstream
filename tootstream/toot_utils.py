@@ -3,7 +3,6 @@ import click
 import configparser
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_parser import TootParser
 from .toot_print import *
 
 
@@ -14,15 +13,6 @@ KEYPROFILE = __name__ + 'profile'
 KEYPROMPT = __name__ + 'prompt'
 KEYMASTODON = __name__ + 'mastodon'
 KEYSHELL = __name__ + 'shell'
-toot_parser = TootParser(indent='  ')
-
-
-def get_content(toot):
-    html = toot['content']
-    toot_parser.reset()
-    toot_parser.feed(html)
-    toot_parser.close()
-    return toot_parser.get_text()
 
 
 def set_configfile(filename):
@@ -158,7 +148,6 @@ __all__ = [ 'set_configfile', 'get_configfile',
             'get_profile_values',
             'get_known_profiles',
             'get_userid',
-            'get_content',
             'parse_config',
             'save_config' ]
 

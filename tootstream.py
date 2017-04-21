@@ -125,7 +125,7 @@ def _tootstream():
     Commands can be tab-completed. Some readline keybindings are supported.
     Command history is available but not saved between sessions.
 
-    unimplemented: 2FA, CW/NSFW, media attachments, user timelines, favourites list
+    unimplemented: 2FA, CW/NSFW & media on posts/replies
     """
     pass
 
@@ -367,8 +367,8 @@ def thread(tootid):
 
     # No history
     if ((len(dicts['ancestors']) == 0) and (len(dicts['descendants']) == 0)):
-        cprint("  No history to show.", fg('blue'))
-        return
+        cprint("  No additional history to show.", fg('blue'))
+        # fall through and print the current toot anyway
 
     # Print older toots
     if (len(dicts['ancestors']) > 0):
@@ -379,17 +379,7 @@ def thread(tootid):
 
     # Print current toot
     currentToot = mastodon.status(tootid)
-    display_name = "  " + currentToot['account']['display_name']
-    username = " @" + currentToot['account']['username'] + " "
-    reblogs_count = "  ♺:" + str(currentToot['reblogs_count'])
-    favourites_count = " ♥:" + str(currentToot['favourites_count']) + " "
-    #toot_id = str(IDS.to_local(currentToot['id']))
-    toot_id = str(currentToot['id'])
-    cprint(display_name, fg('blue'), end="")
-    cprint(username + currentToot['created_at'], fg('blue'))
-    cprint(reblogs_count + favourites_count, fg('blue'), end="")
-    cprint(toot_id, fg('blue'))
-    cprint(get_content(currentToot), fg('blue'), end="\n")
+    printTimelineToot(currentToot)
 
     # Print newer toots
     if (len(dicts['descendants']) > 0):
@@ -409,37 +399,7 @@ def note():
     """Displays the Notifications timeline."""
     mastodon = get_active_mastodon()
     for note in reversed(mastodon.notifications()):
-        display_name = "  " + note['account']['display_name']
-        username = " @" + note['account']['username']
-
-        # Mentions
-        if note['type'] == 'mention':
-            cprint(display_name + username + " mentioned you =================", fg('magenta'))
-            printTimelineToot(note['status'])
-
-        # Favorites
-        elif note['type'] == 'favourite':
-            reblogs_count = "  " + "♺:" + str(note['status']['reblogs_count'])
-            favourites_count = " ♥:" + str(note['status']['favourites_count'])
-            time = " " + note['status']['created_at']
-            content = get_content(note['status'])
-            cprint(display_name + username + " favorited your status:", fg('green'))
-            cprint(reblogs_count + favourites_count + time + '\n' + content, fg('green'))
-
-        # Boosts
-        elif note['type'] == 'reblog':
-            cprint(display_name + username + " boosted your status:", fg('yellow'))
-            cprint(get_content(note['status']), fg('yellow'))
-
-        # Follows
-        elif note['type'] == 'follow':
-            username = re.sub('<[^<]+?>', '', username)
-            display_name = note['account']['display_name']
-            print("  ", end="")
-            cprint(display_name + username + " followed you!", fg('red'))
-
-        # blank line
-        print('')
+        printNotification(note)
 # aliases
 _tootstream.add_command(note, 'n')
 
@@ -467,7 +427,7 @@ def whatis(tag):
     """Search for a hashtag."""
     mastodon = get_active_mastodon()
     for toot in reversed(mastodon.timeline_hashtag(tag)):
-        printTimelineToot(toot, mastodon)
+        printTimelineToot(toot)
 # aliases
 _tootstream.add_command(whatis, 'what')
 
