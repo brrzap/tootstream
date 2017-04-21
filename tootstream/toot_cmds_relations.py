@@ -57,9 +57,9 @@ def follow_followers():
     user = mastodon.account_verify_credentials()
     users = mastodon.account_followers(user['id'])
     if not users:
-        cprint("  You don't have any followers", fg('red'))
+        cprint("  You're safe!  There's nobody following you", fg('red'))
     else:
-        cprint("  Your followers:", fg('magenta'))
+        cprint("  People who follow you (" + str(len(users)) + "):", fg('magenta'))
         printUsersShort(users)
 
 
@@ -72,9 +72,9 @@ def follow_following():
     user = mastodon.account_verify_credentials()
     users = mastodon.account_following(user['id'])
     if not users:
-        cprint("  You're safe!  There's nobody following you", fg('red'))
+        cprint("  You aren't following anyone", fg('red'))
     else:
-        cprint("  People following you:", fg('magenta'))
+        cprint("  People you follow (" + str(len(users)) + "):", fg('magenta'))
         printUsersShort(users)
 
 
