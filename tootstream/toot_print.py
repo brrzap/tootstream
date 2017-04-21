@@ -1,6 +1,7 @@
 import click
 import random
 import re
+import arrow
 from mastodon import Mastodon
 from colored import fg, attr, stylize
 from .toot_parser import TootParser
@@ -84,6 +85,9 @@ def _format_id(tootoruser):
 def _format_time(toot):
     return str(toot['created_at'])
 
+def _format_time_relative(toot):
+    return arrow.get(toot['created_at']).humanize()
+
 def _format_spoiler(toot):
     if not toot['spoiler_text']: return ''
     return "CW: " + toot['spoiler_text']
@@ -105,7 +109,7 @@ def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefi
     return '  '.join(( stylize(prefix + _format_visibility(toot), style1, reset=False),
                        stylize(_format_counts(toot), style2, reset=False),
                        stylize(_format_id(toot), style3, reset=False),
-                       stylize(_format_time(toot) + suffix, style4, reset=True) ))
+                       stylize(_format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4, reset=True) ))
 
 
 def _style_tootid_username(toot, style=[], prefix='', suffix=''):
