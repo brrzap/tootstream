@@ -7,6 +7,9 @@ from colored import fg, attr, stylize
 from .toot_parser import TootParser
 #from .toot_utils import get_active_profile, get_known_profile, get_active_mastodon
 
+#####################################
+######## BEGIN COMMAND BLOCK ########
+#####################################
 COLORS = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
 GLYPH_LOCK      = '\U0001f512'  # lock emoji (masto web uses FontAwesome's U+F023 but nonstd)
 GLYPH_FAVE      = '♥'
@@ -22,6 +25,7 @@ VISIBILITY = { 'public':   GLYPH_PUBLIC,
                'direct':   GLYPH_DIRECT,
                'unknown':  GLYPH_PINEAPPLE }
 _indent = "  "
+_continued = "[...]"
 toot_parser = TootParser(indent='  ', width=75)
 random.seed()
 
@@ -35,6 +39,9 @@ random.seed()
 #    #return click.wrap_text(text, width=width-5, initial_indent=_indent, subsequent_indent=_indent)
 
 
+#####################################
+######## FORMAT HELPERS      ########
+#####################################
 ### html formatting
 def _format_html(html):
     # update terminal size
@@ -47,10 +54,6 @@ def _format_html(html):
     return toot_parser.get_text()
 
 
-def get_content(toot):
-    return _format_html(toot['content'])
-
-
 ### User dict formatting
 def _format_display_name(user):
     return "'" + user['display_name'] + "'"
@@ -59,13 +62,6 @@ def _format_username(user):
     if user['locked']:
         return "@" + user['acct'] + " " + GLYPH_LOCK
     return "@" + user['acct']
-
-def _style_name_line(user, style1=[], style2=None, prefix='', suffix=''):
-    # [prefix] 'Display Name' @user@instance [suffix]
-    # <========style1         style2================>
-    if not style2: style2 = style1
-    return ' '.join(( stylize(prefix + _format_display_name(user), style1),
-                      stylize(_format_username(user) + suffix, style2) ))
 
 
 ### Toot dict formatting
@@ -90,14 +86,40 @@ def _format_time_relative(toot):
 
 def _format_spoiler(toot):
     if not toot['spoiler_text']: return ''
-    return "CW: " + toot['spoiler_text']
+    return "[CW: " + toot['spoiler_text'] + "]"
 
 def _format_visibility(toot):
     return "vis:" + VISIBILITY[toot['visibility']]
 
+def _format_nsfw(toot):
+    if not toot['sensitive']: return ''
+    return "[NSFW]"
+
+
+### Media dict formatting
 def _format_media(toot):
     # TODO: implement
+    out = ""
     pass
+
+
+#####################################
+########                     ########
+#####################################
+def get_content(toot):
+    return _format_html(toot['content'])
+
+
+#####################################
+###### STYLE HELPERS           ######
+#####################################
+def _style_name_line(user, style1=[], style2=None, prefix='', suffix=''):
+    # [prefix] 'Display Name' @user@instance [suffix]
+    # <========style1         style2================>
+    if not style2: style2 = style1
+    return ' '.join(( stylize(prefix + _format_display_name(user), style1),
+                      stylize(_format_username(user) + suffix, style2) ))
+
 
 def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefix='', suffix=''):
     # [prefix] vis:X    ♺:0 ♥:0  id:76642  2017-04-21T18:48:34.000Z [suffix]
@@ -106,20 +128,23 @@ def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefi
     if not style2: style2 = style1
     if not style3: style3 = style1
     if not style4: style4 = style1
-    return '  '.join(( stylize(prefix + _format_visibility(toot), style1, reset=False),
-                       stylize(_format_counts(toot), style2, reset=False),
-                       stylize(_format_id(toot), style3, reset=False),
-                       stylize(_format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4, reset=True) ))
+    return '  '.join(( stylize(prefix + _format_visibility(toot), style1),
+                       stylize(_format_counts(toot), style2),
+                       stylize(_format_id(toot), style3),
+                       stylize(_format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
 
 
 def _style_tootid_username(toot, style=[], prefix='', suffix=''):
     # [prefix] id:X from @user@instance [suffix]
     # <========style===========================>
-    return stylize( prefix + _format_id(toot)
+    return stylize( prefix + _format_id(toot) + " from "
                     + _format_username(toot['account']) + suffix, style )
 
 
 _pineapple = '\U0001f34d'  # can never have too many
+#####################################
+###### PRINTERS (USER-FACING)  ######
+#####################################
 def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
 
@@ -132,6 +157,17 @@ def _print_name_line_solid(user, style=[], end='\n'):
 def _print_id_line_solid(toot, style=[], end='\n'):
     print( _indent + _style_id_line(toot, style), end )
     return
+
+
+def _print_media_list(toot, style=[]):
+    # is even there are some?
+    if not toot['media_attachments']: return
+    out = []
+    nsfw = _format_nsfw(toot)
+    for thing in toot['media_attachments']:
+        # TODO: may actually want thing['remote_url']
+        out.append(str(_indent+_indent+nsfw+" "+thing['type']+": "+thing['url']))
+    cprint('\n'.join(out), fg('magenta'))
 
 
 def printProfiles():
@@ -161,6 +197,7 @@ def printHistoryToot(toot):
         cprint(_indent + _format_spoiler(toot), fg('red'))
     content = get_content(toot)
     print(content + "\n")
+    _print_media_list(toot)
 
 
 def printTimelineToot(toot):
@@ -172,26 +209,38 @@ def printTimelineToot(toot):
     print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
     content = get_content(toot)
 
-    # header for boosted toots
+    # boosted toots
     if toot['reblog']:
-        print(_indent + _style_tootid_username(toot, fg('cyan'), prefix='Boosted by ', suffix=':'))
+        # all the interesting stuff is in here.  media/sensitive/spoiler are not
+        # present in the wrapper toot.
+        print(_indent + _style_tootid_username(toot['reblog'], fg('cyan'), prefix='Boosted ', suffix=':'))
+        if toot['reblog']['spoiler_text']:
+            cprint(_indent + _format_spoiler(toot['reblog']), fg('red'), end=":\n")
         content = _indent + get_content(toot['reblog'])
-        # ignore toot['reblog']['spoiler_text'] here,
-        # if it's different there's something very wrong
+        cprint(content, fg('white'))
+        _print_media_list(toot['reblog'])
+        print("\n")
+        return
 
-    # header for a reply
+    # reply
     elif toot['in_reply_to_id']:
+        # get the reply to print context. spoiler text might have changed, etc
+        # TODO: cut down to 1 line of context; user can use thread cmd if they need more
         repliedToot = mastodon.status(toot['in_reply_to_id'])
         print(_indent + _style_tootid_username(repliedToot, fg('blue'), prefix='Replied to ', suffix=':'))
         repliedTootContent = get_content(repliedToot)
         if repliedToot['spoiler_text']:
             cprint(_indent + _indent + _format_spoiler(repliedToot), fg('red'), end=": ")
-        cprint(repliedTootContent + "\n", fg('blue'))
+        cprint(repliedTootContent, fg('blue'))
+        _print_media_list(repliedToot)
+        print("\n")
 
     # last but not least, spoilertext (CW)
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'), end=":\n")
-    cprint(content + "\n", fg('white'))
+    cprint(content, fg('white'))
+    _print_media_list(toot)
+    print("\n")
 
 
 def printNotification(note):
