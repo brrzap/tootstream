@@ -2,6 +2,18 @@
 from html.parser import HTMLParser
 from textwrap import TextWrapper
 
+__all__ = ['TootParser', 'TootWrapper']
+
+class TootWrapper(TextWrapper):
+    def __init__(self, *args, **kwargs):
+        super(TootWrapper, self).__init__(args, kwargs)
+
+    def shorten(self, text, width, placeholder="...", **kwargs):
+        # found on stackexchange. not sure i can explain it.
+        out = text[:width] + (text[width:] and placeholder)
+        return out
+
+
 class TootParser(HTMLParser):
     def __init__(self,
             indent = '',

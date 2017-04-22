@@ -4,7 +4,8 @@ import re
 import arrow
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_parser import TootParser
+from .toot_parser import *
+from textwrap import indent as tw_indent
 #from .toot_utils import get_active_profile, get_known_profile, get_active_mastodon
 
 #####################################
@@ -25,8 +26,15 @@ VISIBILITY = { 'public':   GLYPH_PUBLIC,
                'direct':   GLYPH_DIRECT,
                'unknown':  GLYPH_PINEAPPLE }
 _indent = "  "
-_continued = "[...]"
+_ts_wrapper = TootWrapper( width=75, tabsize=4,
+                           initial_indent=_indent, subsequent_indent=_indent,
+                           #replace_whitespace=False,
+                           drop_whitespace=False,
+                           break_long_words=False )
 toot_parser = TootParser(indent='  ', width=75)
+#_current_width = 0
+#_current_height = 0
+(_current_width, _current_height) = click.get_terminal_size()
 random.seed()
 
 
@@ -88,6 +96,11 @@ def _format_spoiler(toot):
     if not toot['spoiler_text']: return ''
     return "[CW: " + toot['spoiler_text'] + "]"
 
+def _format_spoiler_trimmed(toot):
+    (width, _) = click.get_terminal_size()
+    trimlen = width*2//7  # very scientific
+    return _ts_wrapper.shorten(_format_spoiler(toot), width=trimlen)
+
 def _format_visibility(toot):
     return "vis:" + VISIBILITY[toot['visibility']]
 
@@ -97,10 +110,16 @@ def _format_nsfw(toot):
 
 
 ### Media dict formatting
-def _format_media(toot):
-    # TODO: implement
-    out = ""
-    pass
+def _list_media(toot):
+    # returns a list instead of a string
+    # is even there are some?
+    if not toot['media_attachments']: return None
+    out = []
+    nsfw = _format_nsfw(toot)
+    for thing in toot['media_attachments']:
+        # TODO: may actually want thing['remote_url']
+        out.append(str(nsfw+" "+thing['type']+": "+thing['url']))
+    return out
 
 
 #####################################
@@ -108,6 +127,11 @@ def _format_media(toot):
 #####################################
 def get_content(toot):
     return _format_html(toot['content'])
+
+def get_content_trimmed(toot):
+    (width, _) = click.get_terminal_size()
+    trimlen = width*4//7  # very scientific
+    return _ts_wrapper.shorten(get_content(toot), trimlen)
 
 
 #####################################
@@ -117,8 +141,8 @@ def _style_name_line(user, style1=[], style2=None, prefix='', suffix=''):
     # [prefix] 'Display Name' @user@instance [suffix]
     # <========style1         style2================>
     if not style2: style2 = style1
-    return ' '.join(( stylize(prefix + _format_display_name(user), style1),
-                      stylize(_format_username(user) + suffix, style2) ))
+    return ' '.join(( stylize( prefix + _format_display_name(user), style1 ),
+                      stylize( _format_username(user) + suffix, style2 ) ))
 
 
 def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefix='', suffix=''):
@@ -128,10 +152,10 @@ def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefi
     if not style2: style2 = style1
     if not style3: style3 = style1
     if not style4: style4 = style1
-    return '  '.join(( stylize(prefix + _format_visibility(toot), style1),
-                       stylize(_format_counts(toot), style2),
-                       stylize(_format_id(toot), style3),
-                       stylize(_format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
+    return '  '.join(( stylize( prefix + _format_visibility(toot), style1 ),
+                       stylize( _format_counts(toot), style2 ),
+                       stylize( _format_id(toot), style3 ),
+                       stylize( _format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
 
 
 def _style_tootid_username(toot, style=[], prefix='', suffix=''):
@@ -141,33 +165,36 @@ def _style_tootid_username(toot, style=[], prefix='', suffix=''):
                     + _format_username(toot['account']) + suffix, style )
 
 
+def _style_media_list(toot, style=[], prefix='', suffix=''):
+    # [prefix] [NSFW] image: http://example.com/foo/bar/baz [suffix]
+    # <========style==============================================>
+    textin = _list_media(toot)
+    out = []
+    if not textin: return ''
+    for line in textin:
+        out.append(str(prefix + line + suffix))
+    return stylize('\n'.join(out), style)
+
+
+def _style_toot_historytheme(toot, ind=_indent):
+    out = []
+    out.append( _style_name_line(toot['account'], fg('green'), fg('yellow')) )
+    out.append( _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
+    if toot['spoiler_text']:
+        out.append( stylize( '\n'.join(_ts_wrapper.wrap(_format_spoiler(toot))), fg('red')) )
+    out.append( get_content(toot) )
+    out.append( _style_media_list(toot, fg('magenta'), prefix=ind+ind) )
+    for line in out:
+        tw_indent(line, ind)
+    return '\n'.join(out)
+
+
 _pineapple = '\U0001f34d'  # can never have too many
 #####################################
 ###### PRINTERS (USER-FACING)  ######
 #####################################
 def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
-
-
-def _print_name_line_solid(user, style=[], end='\n'):
-    print( _indent + _style_name_line(user, style), end )
-    return
-
-
-def _print_id_line_solid(toot, style=[], end='\n'):
-    print( _indent + _style_id_line(toot, style), end )
-    return
-
-
-def _print_media_list(toot, style=[]):
-    # is even there are some?
-    if not toot['media_attachments']: return
-    out = []
-    nsfw = _format_nsfw(toot)
-    for thing in toot['media_attachments']:
-        # TODO: may actually want thing['remote_url']
-        out.append(str(_indent+_indent+nsfw+" "+thing['type']+": "+thing['url']))
-    cprint('\n'.join(out), fg('magenta'))
 
 
 def printProfiles():
@@ -191,13 +218,15 @@ def printProfiles():
 def printHistoryToot(toot):
     """Prints toot nicely with hardcoded colors."""
     # Prints individual toot/tooter info
+    # _style_toot_historytheme
     print( _indent + _style_name_line(toot['account'], fg('green'), fg('yellow')) )
     print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'))
     content = get_content(toot)
     print(content + "\n")
-    _print_media_list(toot)
+    if toot['media_attachments']:
+        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
 
 
 def printTimelineToot(toot):
@@ -218,7 +247,8 @@ def printTimelineToot(toot):
             cprint(_indent + _format_spoiler(toot['reblog']), fg('red'), end=":\n")
         content = _indent + get_content(toot['reblog'])
         cprint(content, fg('white'))
-        _print_media_list(toot['reblog'])
+        if toot['reblog']['media_attachments']:
+            print(_style_media_list(toot['reblog'], fg('magenta'), prefix=_indent+_indent+_indent))
         print("\n")
         return
 
@@ -228,18 +258,20 @@ def printTimelineToot(toot):
         # TODO: cut down to 1 line of context; user can use thread cmd if they need more
         repliedToot = mastodon.status(toot['in_reply_to_id'])
         print(_indent + _style_tootid_username(repliedToot, fg('blue'), prefix='Replied to ', suffix=':'))
-        repliedTootContent = get_content(repliedToot)
+        repliedTootContent = get_content_trimmed(repliedToot)
         if repliedToot['spoiler_text']:
-            cprint(_indent + _indent + _format_spoiler(repliedToot), fg('red'), end=": ")
+            cprint(_indent + _indent + _format_spoiler_trimmed(repliedToot), fg('red'), end=": ")
         cprint(repliedTootContent, fg('blue'))
-        _print_media_list(repliedToot)
+        if repliedToot['media_attachments']:
+            print(_style_media_list(repliedToot, fg('magenta'), prefix=_indent+_indent+_indent))
         print("\n")
 
     # last but not least, spoilertext (CW)
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'), end=":\n")
     cprint(content, fg('white'))
-    _print_media_list(toot)
+    if toot['media_attachments']:
+        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
     print("\n")
 
 
@@ -282,7 +314,8 @@ def printUser(user):
     if not user: return
     cprint(_indent + _pineapple + " " + _format_username(user), fg('cyan'), end="  ")
     cprint(_format_display_name(user), fg('red'))
-    cprint(_indent + user['url'], fg('blue'))
+    cprint(_indent + user['url'], fg('blue'), end="  ")
+    cprint(_format_id(user), fg('magenta'))
     cprint(_format_html(user['note']), fg('green'))
 
 
