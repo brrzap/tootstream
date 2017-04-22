@@ -144,17 +144,111 @@ def help(cmd):
     click.echo(_tootstream.get_help(ctx))
 
 
+# callback helper
+def _ts_filecheck(filename):
+    # takes a filename, expands, tests for existence and readability
+    # returns expanded path or None
+    fnm = os.path.expanduser(filename)
+    if os.path.exists(fnm) and os.access(fnm, os.R_OK):
+        return fnm
+    return None
+
+
+# callback for media option
+def _ts_option_filecheck_list_cb(ctx, param, value):
+    # takes a list of filenames from arguments
+    # expands paths, tests existence and readability
+    # aborts with error if tests fail
+    #print("DEBUG: ", str(param), str(param.name), str(value), str(ctx))
+    if value is None: return None
+    if len(value) > 4:
+        print_error("error: only 4 attachments allowed")
+        ctx.abort()
+    v = []
+    error = False
+    for val in value:
+        f = _ts_filecheck(val)
+        if f is None:
+            print_error("error: %s not readable" % val)
+            ctx.abort()
+        v.append(f)
+    return v
+
+
 @_tootstream.command( 'toot', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='post a toot' )
+@click.option( '--add-media', '-m', 'media', metavar='<file>',
+               required=False, default=None,
+               multiple=True,
+               callback=_ts_option_filecheck_list_cb,
+               type=click.Path(),
+               help='attach a file to your post (up to 4)' )
+@click.option( '--nsfw', '-n', is_flag=True,
+               help='mark attachments NSFW' )
+@click.option( '--spoiler', '--cw', '-s', 'spoiler', metavar='<string>',
+               required=False, default=None,
+               help='a string to be shown before hidden content' )
+@click.option( '--vis', '-v', 'vis', metavar='<>',
+               # TODO: can we get current account setting from API? make that default
+               type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private']),
+               default='public',
+               # TODO: direct not supported: https://github.com/halcy/Mastodon.py/issues/41
+               #type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
+               help='post visibility (public, unlisted, private, direct)' )
+@click.option( '--append', '-a', metavar='<file>',
+               required=False, default=None,
+               multiple=True,
+               callback=_ts_option_filecheck_list_cb,
+               type=click.Path(),
+               help='read post text from a file' )
 @click.argument('text', nargs=-1, metavar='<text>')
-def toot(text):
-    """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'."""
-    mastodon = get_active_mastodon()
+def toot(text, media, nsfw, spoiler, vis, append):
+    """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'.
+
+    \b
+      -m, --add-media <file>         attach a media file to the post
+                                       (repeat to attach up to 4 files)
+      -n, --nsfw                     mark attachments as sensitive
+      -v, --vis <p|u|pr>             set post visibility to public/unlisted/private
+      -s, --cw, --spoiler <string>   set spoiler text
+      -a, --append <file>            read post text from a file (not yet implemented)
+    """
+    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
+
+    if not text and not append:
+        print_error("error: cowardly refusing to post an empty post")
+        return
+    if not text and append:
+        print_error("error: posting text from file is currently unimplemented")
+        return
+
+    if vis == 'p':  vis = 'public'
+    if vis == 'u':  vis = 'unlisted'
+    if vis == 'pr': vis = 'private'
+    #if vis == 'd':  vis = 'direct'
     post_text = ' '.join(text)
-    mastodon.toot(post_text)
-    cprint("You tooted: ", fg('magenta') + attr('bold'), end="")
-    cprint(post_text, fg('magenta') + attr('bold') + attr('underlined'))
+    mpost = []
+    mastodon = get_active_mastodon()
+
+    # ground rules
+    # rule: if no media don't set sensitive.
+    if not media:
+        nsfw = False
+    else:
+        for m in media:
+            try:
+                mpost.append( mastodon.media_post(m) )
+            except:
+                print_error("error: API error uploading %s" % m)
+                return
+        assert len(media) == len(mpost)
+
+
+    resp = mastodon.status_post( post_text, media_ids=mpost, sensitive=nsfw,
+                                 visibility=vis, spoiler_text=spoiler )
+
+    printTootSummary(resp)
 # aliases
 _tootstream.add_command(toot, 't')
 
@@ -356,6 +450,7 @@ _tootstream.add_command(mine, 'mytoots')
 @_tootstream.command( 'thread', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='thread history of a toot' )
+# TODO: option to output to file (`--dump`, `-o`?)
 @click.argument('tootid', metavar='<id>')
 def thread(tootid):
     """Displays the thread this toot is part of, ex: 'thread 7'"""
@@ -398,6 +493,8 @@ _tootstream.add_command(thread, 'detail')
 def note():
     """Displays the Notifications timeline."""
     mastodon = get_active_mastodon()
+    # TODO: extract follow notifications & print separately?
+    #       consolidate so notifs on same toot are all together?
     for note in reversed(mastodon.notifications()):
         printNotification(note)
 # aliases

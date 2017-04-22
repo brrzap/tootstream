@@ -229,6 +229,19 @@ def printHistoryToot(toot):
         print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
 
 
+def printTootSummary(toot):
+    """Short 3-line summary: name line, id line, spoiler/content line."""
+    print( _indent + _style_name_line(toot['account'], fg(random.choice(COLORS))) )
+    print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
+    content = get_content_trimmed(toot)
+    if toot['spoiler_text']:
+        cprint(_indent + _format_spoiler_trimmed(toot), fg('red'), end=": ")
+    cprint(content, fg('white'))
+    if toot['media_attachments']:
+        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
+    print("\n")
+
+
 def printTimelineToot(toot):
     """Prints toot nicely with randomized username coloring."""
     from .toot_utils import get_active_mastodon
@@ -346,6 +359,7 @@ __all__ = [ 'cprint',
             'printProfiles',
             'printHistoryToot',
             'printTimelineToot',
+            'printTootSummary',
             'printNotification',
             'printUser',
             'printUserShort',
