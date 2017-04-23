@@ -191,10 +191,10 @@ def _ts_option_filecheck_list_cb(ctx, param, value):
                help='a string to be shown before hidden content' )
 @click.option( '--vis', '-v', 'vis', metavar='<>',
                # TODO: can we get current account setting from API? make that default
-               type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private']),
-               default='public',
+               type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private']),
+               default='acct',
                # TODO: direct not supported: https://github.com/halcy/Mastodon.py/issues/41
-               #type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
+               #type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
                help='post visibility (public, unlisted, private, direct)' )
 @click.option( '--append', '-a', metavar='<file>',
                required=False, default=None,
@@ -223,15 +223,17 @@ def toot(text, media, nsfw, spoiler, vis, append):
         print_error("error: posting text from file is currently unimplemented")
         return
 
-    if vis == 'p':  vis = 'public'
-    if vis == 'u':  vis = 'unlisted'
-    if vis == 'pr': vis = 'private'
-    #if vis == 'd':  vis = 'direct'
+    # TODO: verify 'acct' setting is right -- Mastodon.py uses this as account-default setting?
+    # convert user-friendly shortcuts
+    if vis == 'acct': vis = ''
+    elif vis == 'p':  vis = 'public'
+    elif vis == 'u':  vis = 'unlisted'
+    elif vis == 'pr': vis = 'private'
+    #elif vis == 'd':  vis = 'direct'
     post_text = ' '.join(text)
     mpost = []
     mastodon = get_active_mastodon()
 
-    # ground rules
     # rule: if no media don't set sensitive.
     if not media:
         nsfw = False
@@ -256,26 +258,101 @@ _tootstream.add_command(toot, 't')
 @_tootstream.command( 'reply', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='reply to a toot' )
+@click.option( '--add-media', '-m', 'media', metavar='<file>',
+               required=False, default=None,
+               multiple=True,
+               callback=_ts_option_filecheck_list_cb,
+               type=click.Path(),
+               help='attach a file to your post (up to 4)' )
+@click.option( '--nsfw', '-n', is_flag=True,
+               help='mark attachments NSFW' )
+@click.option( '--spoiler', '--cw', '-s', 'spoiler', metavar='<string>',
+               required=False, default=None,
+               help='a string to be shown before hidden content' )
+@click.option( '--nospoiler', '--nocw', 'nospoiler', is_flag=True,
+               help='don\'t use original toot\'s spoiler text' )
+@click.option( '--vis', '-v', 'vis', metavar='<>',
+               # TODO: can we get current account setting from API? make that default
+               type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'orig']),
+               default='orig', # follow the parent's setting
+               # TODO: direct not supported: https://github.com/halcy/Mastodon.py/issues/41
+               #type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct', 'asorig']),
+               help='post visibility (public, unlisted, private, direct)' )
+@click.option( '--append', '-a', metavar='<file>',
+               required=False, default=None,
+               multiple=True,
+               callback=_ts_option_filecheck_list_cb,
+               type=click.Path(),
+               help='read post text from a file' )
 @click.argument('tootid', metavar='<id>')
 @click.argument('text', nargs=-1, metavar='<text>')
-def reply(tootid, text):
-    """Reply to a toot by ID."""
+def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
+    """Reply to a toot by ID.  Defaults to the original toot's visibility and spoiler text.
+
+    \b
+      -m, --add-media <file>         attach a media file to the post
+                                       (repeat to attach up to 4 files)
+      -n, --nsfw                     mark attachments as sensitive
+      -v, --vis <p|u|pr>             change post visibility to public/unlisted/private
+      -s, --cw, --spoiler <string>   change spoiler text
+          --nocw, --nospoiler        don't use original toot's spoiler text
+      -a, --append <file>            read post text from a file (not yet implemented)
+    """
+    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
+
+    if not text and not append:
+        print_error("error: cowardly refusing to post an empty post")
+        return
+    if not text and append:
+        print_error("error: posting text from file is currently unimplemented")
+        return
     mastodon = get_active_mastodon()
+    parent_toot = mastodon.status(tootid)
+
+    #print("DEBUG: "+' '.join(( "P_vis:"+str(parent_toot['visibility']), "P_cw:'"+str(parent_toot['spoiler_text'])+"'" )))
+
+    # default vis to parent's
+    if vis == 'orig': vis = parent_toot['visibility']
+    # convert user-friendly shortcuts
+    elif vis == 'p':  vis = 'public'
+    elif vis == 'u':  vis = 'unlisted'
+    elif vis == 'pr': vis = 'private'
+    #elif vis == 'd':  vis = 'direct'
+
+    # default spoiler to parent's unless nospoiler is set
+    if nospoiler:
+        spoiler = ''
+    elif not spoiler:
+        spoiler = parent_toot['spoiler_text']
     reply_text = ' '.join(text)
-    #parent_id = IDS.to_global(tootid)
-    parent_id = tootid
-    if parent_id is None:
-        return print_error("error: invalid ID.")
-    parent_toot = mastodon.status(parent_id)
+    mpost = []
+
+    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
+
+    # rule: if no media don't set sensitive.
+    if not media:
+        nsfw = False
+    else:
+        for m in media:
+            try:
+                mpost.append( mastodon.media_post(m) )
+            except:
+                print_error("error: API error uploading %s" % m)
+                return
+        assert len(media) == len(mpost)
+
     mentions = [i['acct'] for i in parent_toot['mentions']]
     mentions.append(parent_toot['account']['acct'])
     mentions = ["@%s" % i for i in list(set(mentions))] # Remove dups
     mentions = ' '.join(mentions)
-    # TODO: Ensure that content warning visibility carries over to reply
-    reply_toot = mastodon.status_post('%s %s' % (mentions, reply_text),
-                                      in_reply_to_id=int(parent_id))
-    msg = "  Replied with: " + get_content(reply_toot)
-    cprint(msg, fg('red'))
+
+    post_text = ' '.join(( mentions, reply_text ))
+
+    resp = mastodon.status_post( post_text, media_ids=mpost, sensitive=nsfw,
+                                 in_reply_to_id=int(tootid),
+                                 visibility=vis, spoiler_text=spoiler )
+
+    printTootSummary(resp)
 # aliases
 _tootstream.add_command(reply, 'r')
 _tootstream.add_command(reply, 'rep')
