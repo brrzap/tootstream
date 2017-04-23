@@ -201,12 +201,22 @@ def _style_toot_historytheme(toot, ind=_indent):
     return '\n'.join(out)
 
 
+def stylize_rl(text, styles, reset=True):
+    """conveniently styles your text as and resets ANSI codes at its end. readline-safe."""
+    # problem: stylize doesn't add the escapes we need for readline.
+    # see: https://github.com/dslackw/colored/issues/5
+    # solution: localized tweak.
+    terminator = attr("reset") if reset else ""
+    return "\x01{}\x02{}\x01{}\x02".format("".join(styles), text, terminator)
+
+
 def stylePrompt(username, profile, style1=[], style2=None, prefix='[', suffix=']: '):
     # [prefix]@username (profile)[suffix]
     #         <==style1 style2==>
     if not style2: style2 = style1
-    return ''.join(( prefix, stylize("@"+username, style1), " ",
-                     stylize("("+profile+")", style2), suffix ))
+    # use stylize_rl() instead of stylize() for prompts. same arguments.
+    return ''.join(( prefix, stylize_rl("@"+username, style1), " ",
+                     stylize_rl("("+profile+")", style2), suffix ))
 
 
 _pineapple = '\U0001f34d'  # can never have too many
