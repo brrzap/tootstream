@@ -600,6 +600,8 @@ _tootstream.add_command(whois, 'who')
 def whatis(tag):
     """Search for a hashtag."""
     mastodon = get_active_mastodon()
+    # if user includes # prefix, remove it
+    if tag[0] == "#": tag = tag[1:]
     for toot in reversed(mastodon.timeline_hashtag(tag)):
         printTimelineToot(toot)
 # aliases
@@ -611,30 +613,24 @@ _tootstream.add_command(whatis, 'what')
                      short_help='search #tag|@user' )
 @click.argument('query', metavar='<query>')
 def search(query):
-    """Search for a #tag or @user."""
+    """Search for a #tag or @user.
+
+    \b
+       search #tag         # performs a hashtag search for "tag"
+       search @user        # performs a user search for "user"
+    """
     mastodon = get_active_mastodon()
-    usage = str( "  usage: search #tagname\n" +
-                 "         search @username" )
-    try:
-        indicator = query[:1]
-        query = query[1:]
-    except:
-        cprint(usage, fg('red'))
-        return
-
+    prefix = query[0]
     # @ user search
-    if indicator == "@" and not query == "":
+    if prefix == "@" and not query[1:] == "":
         click.get_current_context().invoke(whois, username=query)
-    # end @
-
     # # hashtag search
-    elif indicator == "#" and not query == "":
+    elif prefix == "#" and not query[1:] == "":
         click.get_current_context().invoke(whatis, tag=query)
-    # end #
-
     else:
-        # FIXME: should do mastodon.content_search() here
-        cprint("  Invalid format.\n"+usage, fg('red'))
+        # TODO: unimplemented in Mastodon.py 1.0.6
+        #stuff = mastodon.content_search(query)
+        cprint("  Invalid format.", fg('red'))
 
     return
 # aliases
