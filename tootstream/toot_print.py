@@ -110,6 +110,12 @@ def _format_nsfw(toot):
 
 
 ### Media dict formatting
+def _format_media_summary(toot):
+    if not toot['media_attachments']: return None
+    suffix = str(len(toot['media_attachments'])) + " attachment"
+    if len(toot['media_attachments']) > 1: suffix += "s"
+    return ' '.join(( _format_nsfw(toot), suffix ))
+
 def _list_media(toot):
     # returns a list instead of a string
     # is even there are some?
@@ -165,9 +171,15 @@ def _style_tootid_username(toot, style=[], prefix='', suffix=''):
                     + _format_username(toot['account']) + suffix, style )
 
 
+def _style_media_summary(toot, style=[], prefix='', suffix=''):
+    # [prefix] [NSFW] 2 attachments [suffix]
+    # <========style=======================>
+    return stylize(prefix+_format_media_summary(toot)+suffix, style)
+
+
 def _style_media_list(toot, style=[], prefix='', suffix=''):
     # [prefix] [NSFW] image: http://example.com/foo/bar/baz [suffix]
-    # <========style==============================================>
+    # <========style===============================================>
     textin = _list_media(toot)
     out = []
     if not textin: return ''
@@ -232,13 +244,14 @@ def printHistoryToot(toot):
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'))
     content = get_content(toot)
-    print(content + "\n")
+    print(content)
     if toot['media_attachments']:
-        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
+        print(_style_media_list(toot, fg('magenta'), prefix=_indent))
+    print("")
 
 
 def printTootSummary(toot):
-    """Short 3-line summary: name line, id line, spoiler/content line."""
+    """Short 4-line summary: name line, id line, spoiler/content line, media summary."""
     print( _indent + _style_name_line(toot['account'], fg(random.choice(COLORS))) )
     print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
     content = get_content_trimmed(toot)
@@ -246,8 +259,8 @@ def printTootSummary(toot):
         cprint(_indent + _format_spoiler_trimmed(toot), fg('red'), end=": ")
     cprint(content, fg('white'))
     if toot['media_attachments']:
-        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
-    print("\n")
+        print(_style_media_summary(toot, fg('magenta'), prefix=_indent))
+    print("")
 
 
 def printTimelineToot(toot):
@@ -270,7 +283,7 @@ def printTimelineToot(toot):
         cprint(content, fg('white'))
         if toot['reblog']['media_attachments']:
             print(_style_media_list(toot['reblog'], fg('magenta'), prefix=_indent+_indent+_indent))
-        print("\n")
+        print("")
         return
 
     # reply
@@ -284,16 +297,15 @@ def printTimelineToot(toot):
             cprint(_indent + _indent + _format_spoiler_trimmed(repliedToot), fg('red'), end=": ")
         cprint(repliedTootContent, fg('blue'))
         if repliedToot['media_attachments']:
-            print(_style_media_list(repliedToot, fg('magenta'), prefix=_indent+_indent+_indent))
-        print("\n")
+            print(_style_media_summary(repliedToot, fg('magenta'), prefix=_indent+_indent))
 
     # last but not least, spoilertext (CW)
     if toot['spoiler_text']:
         cprint(_indent + _format_spoiler(toot), fg('red'), end=":\n")
     cprint(content, fg('white'))
     if toot['media_attachments']:
-        print(_style_media_list(toot, fg('magenta'), prefix=_indent+_indent))
-    print("\n")
+        print(_style_media_list(toot, fg('magenta'), prefix=_indent))
+    print("")
 
 
 def printNotification(note):
