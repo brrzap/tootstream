@@ -783,7 +783,7 @@ def main(instance, email, password, config, profile):
     print("\n")
 
     user = mastodon.account_verify_credentials()
-    prompt = "[@" + str(user['username']) + " (" + profile + ")]: "
+    prompt = stylePrompt(user['username'], profile, fg('blue'), fg('cyan'))
 
     # setup shell
     #ctx = _tootstreamCommands.make_context('tootstreamShell', [], parent=click.get_current_context())

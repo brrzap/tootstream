@@ -34,11 +34,22 @@ $ ./tootstream.py
 * tag/username search commands
 * list favourites, user timelines
 * thread/history command
+* toot/reply with media attachments, spoiler text, visibility settings
+* colored prompt
 * command aliases
 * tab completion for commands
 * hashbang, modules
 * remove background colors because ugghhh (light fontcolor + light bkgrnd color = unreadable)
 * remove localIDs on toots (`https:// + yourinstance + /@username/ + rawID` = actual webpage)
+
+#### rationale
+
+The original project's REPL leaves argument processing to individual commands.  This experimental
+branch set out to see if the Click library could be put to work for that task.  Working on features 
+(subcommands, options) is much more fun than tokenizing a commandline from scratch.
+
+It also serves as a playground for architectural changes (modules etc) that may be of interest
+to the project.  (It may only serve as a proof-of-bad-idea, but that can be interesting too.)
 
 ----
 

@@ -189,6 +189,14 @@ def _style_toot_historytheme(toot, ind=_indent):
     return '\n'.join(out)
 
 
+def stylePrompt(username, profile, style1=[], style2=None, prefix='[', suffix=']: '):
+    # [prefix]@username (profile)[suffix]
+    #         <==style1 style2==>
+    if not style2: style2 = style1
+    return ''.join(( prefix, stylize("@"+username, style1), " ",
+                     stylize("("+profile+")", style2), suffix ))
+
+
 _pineapple = '\U0001f34d'  # can never have too many
 #####################################
 ###### PRINTERS (USER-FACING)  ######
@@ -356,6 +364,7 @@ def print_error(msg):
 
 __all__ = [ 'cprint',
             'get_content',
+            'stylePrompt',
             'printProfiles',
             'printHistoryToot',
             'printTimelineToot',
