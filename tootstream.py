@@ -32,18 +32,31 @@ def register_app(instance):
                                 api_base_url="https://" + instance )
 
 
-def login(instance, email, password):
+def login(instance, client_id, client_secret, email, password):
     """
     Login to a Mastodon instance.
-    Return a Mastodon client if login success, otherwise returns None.
+    Return a valid Mastodon token if login success, likely raises a Mastodon exception otherwise.
     """
-    mastodon = get_active_mastodon()
+    if (email == None):
+        email = input("  Email used to login: ")
+    if (password == None):
+        password = getpass.getpass("  Password: ")
+
+    # temporary object to aquire the token
+    mastodon = Mastodon(
+        client_id=client_id,
+        client_secret=client_secret,
+        api_base_url="https://" + instance
+    )
     return mastodon.log_in(email, password)
 
 
 def parse_or_input_profile(profile, instance=None, email=None, password=None):
     """
     Validate an existing profile or get user input to generate a new one.
+    If email/password is necessary, the user will be prompted 3 times
+    before giving up.  Returns profile values on success: instance, client_id, client_secret, token
+    On failure, returns None, None, None, None.
     """
     cfg = get_config()
     # shortcut for preexisting profiles
@@ -82,18 +95,16 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
         token = cfg[profile]['token']
 
     if (token == None or email != None or password != None):
-        if (email == None):
-            email = input("  Email used to login: ")
-        if (password == None):
-            password = getpass.getpass("  Password: ")
+        for i in [1, 2, 3]:
+            try:
+                token = login(instance, client_id, client_secret, email, password)
+            except Exception as e:
+                print_error("{}: did you type it right?".format(type(e).__name__))
+            if token: break
 
-        # temporary object to aquire the token
-        mastodon = Mastodon(
-            client_id=client_id,
-            client_secret=client_secret,
-            api_base_url="https://" + instance
-        )
-        token = login(instance, email, password)
+        if not token:
+            print_error("giving up after 3 failed login attempts")
+            return None, None, None, None
 
     return instance, client_id, client_secret, token
 
@@ -752,6 +763,9 @@ def main(instance, email, password, config, profile):
         cfg.add_section(profile)
 
     instance, client_id, client_secret, token = parse_or_input_profile(profile, instance, email, password)
+    if not token:
+        print_error("Could not log you in.  Please try again later.")
+        sys.exit(1)
 
 
     mastodon = Mastodon(

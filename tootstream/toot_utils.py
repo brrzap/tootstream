@@ -110,7 +110,9 @@ def parse_config():
 
     if not os.path.isfile(filename):
         cprint("...No configuration found, generating...", fg('cyan'))
-        return
+        cfg = configparser.ConfigParser()
+        set_config(cfg)
+        return cfg
 
     cfg = configparser.ConfigParser()
     try:

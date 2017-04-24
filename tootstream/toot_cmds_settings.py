@@ -76,6 +76,10 @@ def profile_add(profile, instance, email, password):
         return
 
     instance, client_id, client_secret, token = parse_or_input_profile(profile)
+    if not token:
+        print_error("Could not log you in. Please try again later.")
+        return
+
     try:
         newmasto = Mastodon(
             client_id=client_id,
