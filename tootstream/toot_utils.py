@@ -205,7 +205,7 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
     if (client_id == None or client_secret == None):
         try:
             client_id, client_secret = register_app(instance)
-        except:
+        except Exception as e:
             print_error("{}: please try again later".format(type(e).__name__))
             return None, None, None, None
 
