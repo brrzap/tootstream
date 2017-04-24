@@ -2,7 +2,6 @@
 
 import os.path
 import click
-import getpass
 import sys
 import re
 import configparser
@@ -25,89 +24,7 @@ from colored import fg, attr, stylize
 #####################################
 ######## UTILITY FUNCTIONS # ########
 #####################################
-# see also tootstream.toot_util module
-
-def register_app(instance):
-    return Mastodon.create_app( 'tootstream',
-                                api_base_url="https://" + instance )
-
-
-def login(instance, client_id, client_secret, email, password):
-    """
-    Login to a Mastodon instance.
-    Return a valid Mastodon token if login success, likely raises a Mastodon exception otherwise.
-    """
-    if (email == None):
-        email = input("  Email used to login: ")
-    if (password == None):
-        password = getpass.getpass("  Password: ")
-
-    # temporary object to aquire the token
-    mastodon = Mastodon(
-        client_id=client_id,
-        client_secret=client_secret,
-        api_base_url="https://" + instance
-    )
-    return mastodon.log_in(email, password)
-
-
-def parse_or_input_profile(profile, instance=None, email=None, password=None):
-    """
-    Validate an existing profile or get user input to generate a new one.
-    If email/password is necessary, the user will be prompted 3 times
-    before giving up.  Returns profile values on success: instance, client_id, client_secret, token
-    On failure, returns None, None, None, None.
-    """
-    cfg = get_config()
-    # shortcut for preexisting profiles
-    if cfg.has_section(profile):
-        try:
-            return get_profile_values(profile)
-        except:
-            pass
-    else:
-        cfg.add_section(profile)
-
-    # no existing profile or it's incomplete
-    if (instance != None):
-        # Nothing to do, just use value passed on the command line
-        pass
-    elif "instance" in cfg[profile]:
-        instance = cfg[profile]['instance']
-    else:
-        cprint("  Which instance would you like to connect to? eg: 'mastodon.social'", fg('blue'))
-        instance = input("  Instance: ")
-
-
-    client_id = None
-    if "client_id" in cfg[profile]:
-        client_id = cfg[profile]['client_id']
-
-    client_secret = None
-    if "client_secret" in cfg[profile]:
-        client_secret = cfg[profile]['client_secret']
-
-    if (client_id == None or client_secret == None):
-        client_id, client_secret = register_app(instance)
-
-    token = None
-    if "token" in cfg[profile]:
-        token = cfg[profile]['token']
-
-    if (token == None or email != None or password != None):
-        for i in [1, 2, 3]:
-            try:
-                token = login(instance, client_id, client_secret, email, password)
-            except Exception as e:
-                print_error("{}: did you type it right?".format(type(e).__name__))
-            if token: break
-
-        if not token:
-            print_error("giving up after 3 failed login attempts")
-            return None, None, None, None
-
-    return instance, client_id, client_secret, token
-
+# see tootstream.toot_util module
 
 #####################################
 ######## OUTPUT FORMATTING # ########

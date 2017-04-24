@@ -77,7 +77,7 @@ def profile_add(profile, instance, email, password):
 
     instance, client_id, client_secret, token = parse_or_input_profile(profile)
     if not token:
-        print_error("Could not log you in. Please try again later.")
+        print_error("Could not log you in. Please try again later.\nThis profilename/email will not be saved.")
         return
 
     try:
@@ -103,6 +103,7 @@ def profile_add(profile, instance, email, password):
     set_active_profile(profile)
     set_active_mastodon(newmasto)
     cprint("  Profile " + profile + " loaded", fg('green'))
+    save_config()
     return
 # aliases
 _profile.add_command(profile_add, 'new')
