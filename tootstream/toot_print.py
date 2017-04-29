@@ -9,7 +9,7 @@ from textwrap import indent as tw_indent
 #from .toot_utils import get_active_profile, get_known_profile, get_active_mastodon
 
 #####################################
-######## BEGIN COMMAND BLOCK ########
+######## CONSTANTS           ########
 #####################################
 COLORS = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
 GLYPH_LOCK      = '\U0001f512'  # lock emoji (masto web uses FontAwesome's U+F023 but nonstd)
@@ -87,7 +87,7 @@ def _format_id(tootoruser):
     return "id:" + str(tootoruser['id'])
 
 def _format_time(toot):
-    return str(toot['created_at'])
+    return arrow.get(toot['created_at']).strftime('%Y.%m.%d %H:%M %Z')
 
 def _format_time_relative(toot):
     return arrow.get(toot['created_at']).humanize()
@@ -121,10 +121,21 @@ def _list_media(toot):
     # is even there are some?
     if not toot['media_attachments']: return None
     out = []
-    nsfw = _format_nsfw(toot)
+    nsfw = (_format_nsfw(toot)+" " if toot['sensitive'] else "")
+    count = 1
     for thing in toot['media_attachments']:
-        # TODO: may actually want thing['remote_url']
-        out.append(str(nsfw+" "+thing['type']+": "+thing['url']))
+        # TODO: may want to cut off any '?xxxxx' after a file extension
+        if thing['text_url'] is not None:
+            # generally the shortest if it exists
+            out.append( ''.join(( nsfw, str(count), ": ", thing['type'], ": (t) ", str(thing['text_url']) )) )
+        elif thing['remote_url'] is not None:
+            # on originating server
+            out.append( ''.join(( nsfw, str(count), ": ", thing['type'], ": (r) ", str(thing['remote_url']) )) )
+        else:
+            # thing['preview_url'] seems to be the same as this
+            # use thing['url'] in case preview is ever a modified version
+            out.append( ''.join(( nsfw, str(count), ": ", thing['type'], ": (l) ", str(thing['url']) )) )
+        count += 1
     return out
 
 
