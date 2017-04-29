@@ -57,6 +57,16 @@ random.seed()
 #    return click.wrap_text(text, width=width-5, initial_indent=_indent, subsequent_indent=_indent, preserve_paragraphs=True)
 #    #return click.wrap_text(text, width=width-5, initial_indent=_indent, subsequent_indent=_indent)
 
+#####################################
+######## STRING UTILITIES    ########
+#####################################
+### handy string collapser
+def collapse(text):
+    """Return a string with all whitespace sequences replaced by single spaces."""
+    #text = re.sub(r'\s+', ' ', text)                # all whitespace
+    text = re.sub(r'[ \t\n\r\f\v\xa0]+', ' ', text)     # ascii whitespace + nbsp (preserve unicode)
+    return text
+
 
 #####################################
 ######## FORMAT HELPERS      ########
@@ -164,7 +174,7 @@ def get_content(toot):
 def get_content_trimmed(toot):
     (width, _) = click.get_terminal_size()
     trimlen = width*4//7  # very scientific
-    return _ts_wrapper.shorten(get_content(toot), trimlen)
+    return _ts_wrapper.shorten(collapse(get_content(toot)), trimlen)
 
 
 #####################################
