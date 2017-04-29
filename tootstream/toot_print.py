@@ -217,8 +217,10 @@ def stylize_rl(text, styles, reset=True):
     # problem: stylize doesn't add the escapes we need for readline.
     # see: https://github.com/dslackw/colored/issues/5
     # solution: localized tweak.
-    terminator = attr("reset") if reset else ""
-    return "\x01{}\x02{}\x01{}\x02".format("".join(styles), text, terminator)
+    C0_SOH = '\x01'  # nonprinting chars begin
+    C0_STX = '\x02'  # nonprinting chars end
+    terminator = "{}{}{}".format(C0_SOH, attr("reset"), C0_STX) if reset else ""
+    return "{}{}{}{}{}".format(C0_SOH, "".join(styles), C0_STX, text, terminator)
 
 
 def stylePrompt(username, profile, style1=[], style2=None, prefix='[', suffix=']: '):
