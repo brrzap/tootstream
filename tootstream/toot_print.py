@@ -11,20 +11,31 @@ from textwrap import indent as tw_indent
 #####################################
 ######## CONSTANTS           ########
 #####################################
-COLORS = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
-GLYPH_LOCK      = '\U0001f512'  # lock emoji (masto web uses FontAwesome's U+F023 but nonstd)
-GLYPH_FAVE      = '♥'
-GLYPH_BOOST     = '♺'
-GLYPH_PINEAPPLE = '\U0001f34d'  # pineapple
-GLYPH_PUBLIC    = '\U0001f30e'  # globe
-GLYPH_UNLISTED  = '\U0001f47b'  # ghost '\U0001f47b' ... mute '\U0001f507' ??
-GLYPH_PRIVATE   = '\U0001f512'  # lock
-GLYPH_DIRECT    = '\U0001f4e7'  # envelopes: '\U0001f4e7' '\U0001f4e9' '\U0001f48c' '\U00002709'
-VISIBILITY = { 'public':   GLYPH_PUBLIC,
-               'unlisted': GLYPH_UNLISTED,
-               'private':  GLYPH_PRIVATE,
-               'direct':   GLYPH_DIRECT,
-               'unknown':  GLYPH_PINEAPPLE }
+COLORS = list(range(19,231))
+GLYPHS = {
+    'fave':          '♥',
+    'boost':         '♺',
+    'pineapple':     '\U0001f34d', # pineapple
+    'toots':         '\U0001f4ea', # mailbox (for toot counts)
+    # keys matching possible values for toot['visibility']
+    'public':        '\U0001f30e', # globe
+    'unlisted':      '\U0001f47b', # ghost '\U0001f47b' ... mute '\U0001f507' ??
+    'private':       '\U0001f512', # lock
+    'direct':        '\U0001f4e7', # envelopes: '\U0001f4e7' '\U0001f4e9' '\U0001f48c' '\U00002709'
+    # keys matching keys in user{}
+    'locked':        '\U0001f512', # lock (masto web uses U+F023 from FontAwesome)
+    # keys matching keys in toot{}
+    'favourited':    '\U00002b50', # star '\U0001f31f' '\U00002b50'
+    'reblogged':     '\U0001f1e7', # regional-B '\U0001f1e7'? reuse ♺?
+    # keys matching keys in relationship{}
+    'followed_by':   '\U0001f43e', # pawprints '\U0001f43e'
+    'following':     '\U0001f463', # footprints '\U0001f463'
+    'blocking':      '\U0000274c', # thumbsdown '\U0001f44e', big X '\U0000274c', stopsign '\U0001f6d1'
+    'muting':        '\U0001f6ab', # mute-spkr '\U0001f507', mute-bell '\U0001f515', prohibited '\U0001f6ab'
+    'requested':     '\U00002753', # hourglass '\U0000231b', question '\U00002753'
+    # catchall
+    'unknown':       '\U0001f34d' }
+
 _indent = "  "
 _ts_wrapper = TootWrapper( width=75, tabsize=4,
                            initial_indent=_indent, subsequent_indent=_indent,
@@ -68,16 +79,16 @@ def _format_display_name(user):
 
 def _format_username(user):
     if user['locked']:
-        return "@" + user['acct'] + " " + GLYPH_LOCK
+        return "@" + user['acct'] + " " + GLYPHS['locked']
     return "@" + user['acct']
 
 
 ### Toot dict formatting
 def _format_boost_count(toot):
-    return GLYPH_BOOST + ":" + str(toot['reblogs_count'])
+    return GLYPHS['boost'] + ":" + str(toot['reblogs_count'])
 
 def _format_faves_count(toot):
-    return GLYPH_FAVE + ":" + str(toot['favourites_count'])
+    return GLYPHS['fave'] + ":" + str(toot['favourites_count'])
 
 def _format_counts(toot):
     return _format_boost_count(toot) + " " + _format_faves_count(toot)
@@ -102,19 +113,24 @@ def _format_spoiler_trimmed(toot):
     return _ts_wrapper.shorten(_format_spoiler(toot), width=trimlen)
 
 def _format_visibility(toot):
-    return "vis:" + VISIBILITY[toot['visibility']]
+    return "vis:" + GLYPHS[toot['visibility']]
 
-def _format_nsfw(toot):
+def _format_acted(toot):
+    # has this user favorited or boosted this toot already?
+    return " "+' '.join(( (GLYPHS['favourited'] if toot['favourited'] else ""),
+                          (GLYPHS['reblogged'] if toot['reblogged'] else "") ))
+
+def _format_nsfw(toot, prefix='[', suffix=']'):
     if not toot['sensitive']: return ''
-    return "[NSFW]"
+    return "{}{}{}".format(prefix, "NSFW", suffix)
 
 
 ### Media dict formatting
-def _format_media_summary(toot):
+def _format_media_summary(toot, prefix='[', suffix=']'):
+    # [prefix]media:COUNT:NSFW[suffix]
     if not toot['media_attachments']: return None
-    suffix = str(len(toot['media_attachments'])) + " attachment"
-    if len(toot['media_attachments']) > 1: suffix += "s"
-    return ' '.join(( _format_nsfw(toot), suffix ))
+    return ''.join(( prefix, "media:", str(len(toot['media_attachments'])),
+                     _format_nsfw(toot, prefix=':', suffix=''), suffix ))
 
 def _list_media(toot):
     # returns a list instead of a string
@@ -170,7 +186,7 @@ def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefi
     if not style3: style3 = style1
     if not style4: style4 = style1
     return '  '.join(( stylize( prefix + _format_visibility(toot), style1 ),
-                       stylize( _format_counts(toot), style2 ),
+                       stylize( _format_counts(toot) + _format_acted(toot), style2 ),
                        stylize( _format_id(toot), style3 ),
                        stylize( _format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
 
@@ -183,8 +199,8 @@ def _style_tootid_username(toot, style=[], prefix='', suffix=''):
 
 
 def _style_media_summary(toot, style=[], prefix='', suffix=''):
-    # [prefix] [NSFW] 2 attachments [suffix]
-    # <========style=======================>
+    # [prefix][media:N:NSFW][suffix]
+    # <========style===============>
     return stylize(prefix+_format_media_summary(toot)+suffix, style)
 
 
@@ -318,9 +334,9 @@ def printTimelineToot(toot):
         repliedTootContent = get_content_trimmed(repliedToot)
         if repliedToot['spoiler_text']:
             cprint(_indent + _indent + _format_spoiler_trimmed(repliedToot), fg('red'), end=": ")
-        cprint(repliedTootContent, fg('blue'))
-        if repliedToot['media_attachments']:
-            print(_style_media_summary(repliedToot, fg('magenta'), prefix=_indent+_indent))
+        print( ''.join(( stylize(repliedTootContent, fg('blue')),
+                         (_style_media_summary(repliedToot, fg('magenta'), prefix=" ")
+                             if repliedToot['media_attachments'] else '') )))
 
     # last but not least, spoilertext (CW)
     if toot['spoiler_text']:
