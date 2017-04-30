@@ -636,6 +636,7 @@ def raw(thisid, user):
 import tootstream.toot_cmds_settings
 import tootstream.toot_cmds_relations
 _tootstream.add_command(tootstream.toot_cmds_settings._profile)
+_tootstream.add_command(tootstream.toot_cmds_settings._listen)
 _tootstream.add_command(tootstream.toot_cmds_relations._follow)
 _tootstream.add_command(tootstream.toot_cmds_relations._block)
 _tootstream.add_command(tootstream.toot_cmds_relations._mute)
@@ -689,6 +690,7 @@ def main(instance, email, password, config, profile, notifications):
         api_base_url="https://" + instance)
 
     if notifications:
+        set_notifications()
         kick_new_thread( mastodon, TootDesktopNotifications(profile) )
 
     cfg[profile] = {

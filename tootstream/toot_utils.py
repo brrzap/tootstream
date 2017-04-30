@@ -15,6 +15,7 @@ KEYPROMPT = __name__ + 'prompt'
 KEYMASTODON = __name__ + 'mastodon'
 KEYSHELL = __name__ + 'shell'
 KEYLISTENERS = __name__ + 'listeners'
+KEYNOTIFICATIONS = __name__ + 'notifications'
 
 
 def set_configfile(filename):
@@ -68,18 +69,31 @@ def set_active_mastodon(mastodon):
 def get_active_mastodon():
     return click.get_current_context().meta.get(KEYMASTODON)
 
+
 def _init_listeners():
     click.get_current_context().meta[KEYLISTENERS] = []
     return
 
+
 def get_listeners():
     return click.get_current_context().meta.get(KEYLISTENERS)
+
 
 def add_listener(l):
     if not click.get_current_context().meta.get(KEYLISTENERS):
         _init_listeners()
     click.get_current_context().meta[KEYLISTENERS].append(l)
     return
+
+
+def get_notifications():
+    return click.get_current_context().meta.get(KEYNOTIFICATIONS)
+
+
+def set_notifications():
+    click.get_current_context().meta[KEYNOTIFICATIONS] = True
+    return
+
 
 def get_profile_values(profile):
     # quick return of existing profile, watch out for exceptions
@@ -251,6 +265,7 @@ __all__ = [ 'set_configfile', 'get_configfile',
             'get_known_profiles',
             'get_userid',
             'add_listener', 'get_listeners',
+            'get_notifications', 'set_notifications',
             'parse_or_input_profile',
             'parse_config',
             'save_config' ]

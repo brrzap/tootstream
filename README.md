@@ -29,6 +29,7 @@ $ ./tootstream.py
 
 #### experimental features
 
+* relay notifications to desktop notifications (`-n`)
 * multiple accounts via profiles
 * follow/block/mute list management commands
 * tag/username search commands

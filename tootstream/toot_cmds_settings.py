@@ -4,9 +4,83 @@ from colored import fg, attr, stylize
 from .toot_click import TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
 from .toot_utils import *
 from .toot_print import *
+from .toot_listener import *
 from .toot_utils import RESERVED
 #from .toot_utils import get_known_profiles, get_active_mastodon, get_active_profile, set_active_mastodon, set_active_profile
 #from .toot_print import cprint, print_error, printProfiles
+
+
+#####################################
+##### LISTENER MANAGEMENT CMDS ######
+#####################################
+@click.group(      'listen', short_help='listen add|remove|list',
+                   cls=TootStreamGroup,
+                   context_settings=CONTEXT_SETTINGS,
+                   invoke_without_command=True,
+                   no_args_is_help=True,
+                   options_metavar='',
+                   subcommand_metavar='<command>' )
+def _listen():
+    """Listener management operations: add, remove, list.
+    Additions will spawn new desktop notification threads."""
+    pass
+
+
+@_listen.command( 'help', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='get help for a command' )
+@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+def listen_help(cmd):
+    """Get details on how to use a command."""
+    ctx = click.get_current_context()
+    if not cmd is None:
+        c = _listen.get_command(ctx, cmd)
+        click.echo(c.get_help(ctx))
+        return
+    click.echo(_listen.get_help(ctx))
+
+
+@_listen.command( 'list', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='list known listeners' )
+def listen_list():
+    """List existing listeners."""
+    ls = get_listeners()
+    for l in ls:
+        if l._tag:
+            print("  Listening to {} on @{}".format(l._tag, l._name))
+        else:
+            print("  Listening to notifications on @{}".format(l._name))
+    return
+# aliases
+_listen.add_command(listen_list, 'ls')
+
+
+@_listen.command( 'add', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='add a #tag listener' )
+@click.argument('profile', metavar='<profile>', required=False, default=None)
+def listen_add():
+    """Add a new listener on a specified #hashtag or @profile."""
+    # ignore global setting here since this is directly user-requested
+    print("Unimplemented, sorry.")
+    return
+# aliases
+_listen.add_command(listen_add, 'create')
+_listen.add_command(listen_add, 'new')
+
+
+@_listen.command( 'stop', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='stop a listener' )
+@click.argument('profile', metavar='<profile>', required=False, default=None)
+def listen_stop():
+    """Stop an existing listener."""
+    print("Unimplemented, sorry.")
+    return
+# aliases
+_listen.add_command(listen_stop, 'kill')
+_listen.add_command(listen_stop, 'rm')
 
 
 #####################################
@@ -102,6 +176,8 @@ def profile_add(profile, instance, email, password):
     set_prompt( stylePrompt(user['username'], profile, fg('blue'), fg('cyan')) )
     set_active_profile(profile)
     set_active_mastodon(newmasto)
+    if get_notifications():
+        kick_new_thread( newmasto, TootDesktopNotifications(profile) )
     cprint("  Profile " + profile + " loaded", fg('green'))
     save_config()
     return
@@ -168,6 +244,8 @@ def profile_load(profile):
         set_prompt( stylePrompt(user['username'], profile, fg('blue'), fg('cyan')) )
         set_active_profile(profile)
         set_active_mastodon(newmasto)
+        if get_notifications():
+            kick_new_thread( newmasto, TootDesktopNotifications(profile) )
         cprint("  Profile " + profile + " loaded", fg('green'))
         return
     else:
