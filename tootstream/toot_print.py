@@ -16,6 +16,7 @@ GLYPHS = {
     'fave':          '♥',
     'boost':         '♺',
     'pineapple':     '\U0001f34d', # pineapple
+    'elephant':      '\U0001f418', #
     'toots':         '\U0001f4ea', # mailbox (for toot counts)
     # keys matching possible values for toot['visibility']
     'public':        '\U0001f30e', # globe
