@@ -11,77 +11,10 @@ from tootstream import *
 from tootstream.toot_click import CONTEXT_SETTINGS
 from tootstream.toot_utils import *
 from tootstream.toot_print import *
-#from tootstream.toot_print import cprint, printProfiles
-#from tootstream import TootParser, TootIdDict, TootStreamCmd, TootStreamGroup, TootStreamCmdCollection
+from tootstream.toot_listener import *
 from click_shell import make_click_shell
-from mastodon import Mastodon, StreamListener
+from mastodon import Mastodon
 from colored import fg, attr, stylize
-from gi.repository import Notify
-
-# initialize modules
-Notify.init("tstream-exp")
-
-class TootDesktopNotifications(StreamListener):
-    """Subclass of mastodon.StreamListener to interface with a Desktop Environment's
-    notifications display.  The user will need a notification server (likely builtin
-    if you're using GNOME, KDE, Unity, or another major DE).
-
-    1st experiment: using gi.repository.Notify
-
-    2nd experiment: launch `notify-send`"""
-    def __init__(self, name=None, *args, **kwargs):
-        super(TootDesktopNotifications, self).__init__(*args, **kwargs)
-        # store an empty note
-        self._note = Notify.Notification.new('')
-        self._name = name
-        if name:
-            # identify where this is coming from
-            self._note.set_app_name("tstream @ {}".format(name))
-
-    def on_update(self, status):
-        # probably don't want notifications on every post
-        pass
-
-    def on_delete(self, status):
-        # probably don't want notifications on every deletion
-        pass
-
-    def _via_Notify(self, summary, body):
-        # helper: the Notify object way
-        self._note.update(summary, body)
-        self._note.set_timeout(15000) # assuming 15 seconds TODO set default of 5-10s once tested
-        self._note.show()
-
-    def _via_notifysend(self, summary, body):
-        # helper: kickoff external command
-        # sample cmdline: notify-send -u normal -t 5000 -a AppName -i /path/to/file.png "summary" "body"
-        # notify-send is available from `libnotify`
-        pass
-
-    def on_notification(self, incoming):
-        """Our main interest."""
-        # deps on Arch: python-gobject, libnotify
-        # deps on Debian: python-gobject, libnotify-bin (TODO: verify)
-        summary = "{} (id:{})".format(incoming['account']['acct'], str(incoming['account']['id']))
-        body = ""
-
-        if incoming['type'] == 'mentions':
-            body = "mentioned you in id:{}".format(str(incoming['status']['id']))
-            pass
-        elif incoming['type'] == 'follow':
-            body = "followed you"
-            pass
-        elif incoming['type'] == 'reblog':
-            body = "boosted your toot (id:{})".format(str(incoming['status']['id']))
-            pass
-        elif incoming['type'] == 'favourite':
-            body = "fav'd your toot (id:{})".format(str(incoming['status']['id']))
-            pass
-        else:
-            body = "..note id:{} unknown type:{}".format(str(incoming['id']), str(incoming['type']))
-            pass
-
-        self._via_notify(summary, body)
 
 #####################################
 ######## UTILITY FUNCTIONS # ########
@@ -755,19 +688,8 @@ def main(instance, email, password, config, profile, notifications):
         access_token=token,
         api_base_url="https://" + instance)
 
-    click.get_current_context().meta['listeners'] = []
     if notifications:
-        try:
-            notelistener = TootDesktopNotifications(profile)
-            click.get_current_context().meta['listeners'].append(notelistener)
-            import threading
-            l = threading.Thread( target=mastodon.user_stream, args=(notelistener,) )
-            if l:
-                l.daemon=True
-                l.start()
-            print_error("Notifications engaged for {}".format(profile))
-        except Exception as e:
-            print_error("{}: error configuring listener: {}".format(type(e).__name__, e))
+        kick_new_thread( mastodon, TootDesktopNotifications(profile) )
 
     cfg[profile] = {
         'instance': instance,
