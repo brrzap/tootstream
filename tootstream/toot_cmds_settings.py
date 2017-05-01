@@ -48,9 +48,9 @@ def listen_list():
     ls = get_listeners()
     for l in ls:
         if l._tag:
-            print("  Listening to {} on @{}".format(l._tag, l._name))
+            print("  Listening to {} on {}".format(l._tag, l._name))
         else:
-            print("  Listening to notifications on @{}".format(l._name))
+            print("  Listening to notifications on {}".format(l._name))
     return
 # aliases
 _listen.add_command(listen_list, 'ls')
