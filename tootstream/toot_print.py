@@ -93,6 +93,11 @@ def _format_username(user):
         return "@" + user['acct'] + " " + GLYPHS['locked']
     return "@" + user['acct']
 
+def _format_usercounts(user):
+    return ''.join(( GLYPHS['toots'], ":", str(user['statuses_count']), " ",
+                     GLYPHS['following'], ":", str(user['following_count']), " ",
+                     GLYPHS['followed_by'], ":", str(user['followers_count']) ))
+
 
 ### Toot dict formatting
 def _format_boost_count(toot):
@@ -398,7 +403,8 @@ def printUser(user):
     cprint(_indent + _pineapple + " " + _format_username(user), fg('cyan'), end="  ")
     cprint(_format_display_name(user), fg('red'))
     cprint(_indent + user['url'], fg('blue'), end="  ")
-    cprint(_format_id(user), fg('magenta'))
+    cprint(_format_id(user), fg('magenta'), end="  ")
+    cprint(_format_usercounts(user), fg('blue'))
     cprint(_format_html(user['note']), fg('green'))
 
 
@@ -406,9 +412,10 @@ def printUserShort(user):
     """Prints user data in an abbreviated 2-line format."""
     if not user: return
     cprint(_indent + _pineapple + " " + _format_username(user), fg('blue'), end=" ")
-    cprint(_format_id(user), fg('red'), end=" ")
     cprint(_format_display_name(user), fg('cyan'))
-    cprint(_indent + _indent + user['url'], fg('green'))
+    cprint(_indent + _indent + _format_id(user), fg('red'), end="  ")
+    cprint(_format_usercounts(user), fg('blue'), end="  ")
+    cprint(user['url'], fg('green'))
 
 
 def printUsersShort(users):
