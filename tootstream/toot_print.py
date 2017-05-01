@@ -272,6 +272,16 @@ def cprint(text, style, end="\n"):
     print(stylize(text, style), end=end)
 
 
+def print_error(msg):
+    """Prints an error message in bold red."""
+    cprint(msg, fg('red')+attr('bold'))
+
+
+def print_ui_msg(msg):
+    """Prints a UI status message in blue."""
+    cprint(msg, fg('blue'))
+
+
 def printProfiles():
     """Prints existing profile names in a sorted list."""
     # TODO: make them nice columns
@@ -425,11 +435,6 @@ def printUsersShort(users):
         printUserShort(user)
 
 
-def print_error(msg):
-    """Prints an error message in bold red."""
-    cprint(msg, fg('red')+attr('bold'))
-
-
 
 __all__ = [ 'cprint',
             'get_content',
@@ -442,5 +447,6 @@ __all__ = [ 'cprint',
             'printUser',
             'printUserShort',
             'printUsersShort',
-            'print_error' ]
+            'print_error',
+            'print_ui_msg' ]
 

@@ -6,8 +6,6 @@ from .toot_utils import *
 from .toot_print import *
 from .toot_listener import *
 from .toot_utils import RESERVED
-#from .toot_utils import get_known_profiles, get_active_mastodon, get_active_profile, set_active_mastodon, set_active_profile
-#from .toot_print import cprint, print_error, printProfiles
 
 
 #####################################
@@ -22,7 +20,7 @@ from .toot_utils import RESERVED
                    subcommand_metavar='<command>' )
 def _listen():
     """Listener management operations: add, remove, list.
-    Additions will spawn new desktop notification threads."""
+    Additions will spawn new desktop notification processes."""
     pass
 
 
@@ -46,11 +44,11 @@ def listen_help(cmd):
 def listen_list():
     """List existing listeners."""
     ls = get_listeners()
+    if not ls:
+        print_ui_msg("  No listeners found")
+        return
     for l in ls:
-        if l._tag:
-            print("  Listening to {} on {}".format(l._tag, l._name))
-        else:
-            print("  Listening to notifications on {}".format(l._name))
+        print_ui_msg("  listening to {}".format(l._dbgname))
     return
 # aliases
 _listen.add_command(listen_list, 'ls')
@@ -59,11 +57,30 @@ _listen.add_command(listen_list, 'ls')
 @_listen.command( 'add', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='add a #tag listener' )
-@click.argument('profile', metavar='<profile>', required=False, default=None)
-def listen_add():
-    """Add a new listener on a specified #hashtag or @profile."""
+@click.argument('names', metavar='<#tag|@profile>', nargs=-1)
+def listen_add(names):
+    """Add new listeners on specified #hashtags or @profiles.
+
+    Valid arguments: #tagname, @profilename, #tagname@profilename
+
+    \b
+       listen add #hashtag     # listens to the current instance's hashtag stream for "hashtag"
+       listen add @other       # listens to the user stream at the instance on profile "other"
+       listen add #tag@other   # ...stream for "tag" at the instance on profile "other"
+       listen add this         # ...first tries as profile, falls back to hashtag
+       listen add #this @that #the@other   # starts 3 different listeners
+    """
     # ignore global setting here since this is directly user-requested
-    print("Unimplemented, sorry.")
+    if len(names)==0:
+        click.get_current_context().invoke(listen_help, cmd='add')
+        return
+
+    for name in names:
+        if seek_and_kick(name):
+            print_ui_msg("  Listener {} is off and running.".format(name))
+        else:
+            print_error("  Could not locate listener {}.".format(name))
+
     return
 # aliases
 _listen.add_command(listen_add, 'create')
@@ -73,10 +90,31 @@ _listen.add_command(listen_add, 'new')
 @_listen.command( 'stop', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='stop a listener' )
-@click.argument('profile', metavar='<profile>', required=False, default=None)
-def listen_stop():
-    """Stop an existing listener."""
-    print("Unimplemented, sorry.")
+@click.argument('names', metavar='<#tag|@profile>', nargs=-1, required=False)
+def listen_stop(names):
+    """Stop existing listeners.
+
+    Valid arguments: #tagname, @profilename, #tagname@profilename
+
+    \b
+       listen stop #hashtag     # stops a hashtag listener for "hashtag"
+       listen stop @other       # stops a user stream listener at the instance on profile "other"
+       listen stop #tag@other   # ...stream for "tag" at the instance on profile "other"
+       listen stop this         # ...first tries as profile, falls back to hashtag
+       listen stop #this @that #the@other   # stops 3 different listeners
+    """
+    if len(names)==0:
+        click.get_current_context().invoke(listen_help, cmd='stop')
+        print_ui_msg("\n  Please indicate which listener needs killing:")
+        click.get_current_context().invoke(listen_list)
+        return
+
+    for name in names:
+        if seek_and_destroy(name):
+            print_ui_msg("  Listener {} is dead.".format(name))
+        else:
+            print_error("  Could not locate listener {}.".format(name))
+
     return
 # aliases
 _listen.add_command(listen_stop, 'kill')
@@ -177,7 +215,7 @@ def profile_add(profile, instance, email, password):
     set_active_profile(profile)
     set_active_mastodon(newmasto)
     if get_notifications():
-        kick_new_thread( newmasto, TootDesktopNotifications(profile) )
+        kick_new_process( newmasto.user_stream, TootDesktopNotifications(profile) )
     cprint("  Profile " + profile + " loaded", fg('green'))
     save_config()
     return
@@ -245,7 +283,7 @@ def profile_load(profile):
         set_active_profile(profile)
         set_active_mastodon(newmasto)
         if get_notifications():
-            kick_new_thread( newmasto, TootDesktopNotifications(profile) )
+            kick_new_process( newmasto.user_stream, TootDesktopNotifications(profile) )
         cprint("  Profile " + profile + " loaded", fg('green'))
         return
     else:

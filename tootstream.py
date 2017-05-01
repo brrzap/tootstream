@@ -570,6 +570,7 @@ def info():
     printUser(user)
 # aliases
 _tootstream.add_command(info, 'me')
+_tootstream.add_command(info, 'whoami')
 
 
 @_tootstream.command( 'delete', options_metavar='',
@@ -691,7 +692,7 @@ def main(instance, email, password, config, profile, notifications):
 
     if notifications:
         set_notifications()
-        kick_new_thread( mastodon, TootDesktopNotifications(profile) )
+        kick_new_process( mastodon.user_stream, TootDesktopNotifications(profile) )
 
     cfg[profile] = {
         'instance': instance,
