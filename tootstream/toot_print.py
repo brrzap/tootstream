@@ -451,7 +451,7 @@ def printUsersShortShort(users):
 
     maxlen_id = max(len(row[0]) for row in out)
     maxlen_u = max(len(row[1]) for row in out)
-    maxwidth = maxlen_id+2+maxlen_u # 2 for "  " to space the columns
+    #maxwidth = maxlen_id+2+maxlen_u # 2 for "  " to space the columns
 
     out_l = out[:len(out)//2]
     out_r = out[len(out)//2:]
@@ -467,7 +467,6 @@ def printUsersShortShort(users):
 
 def printTootsShortShort(toots):
     """Prints a list of toots in compact columns."""
-    # ugly first version: 3 columns wide, unaligned
     if not toots: return
 
     # TODO: smarter column size determinations
@@ -482,7 +481,7 @@ def printTootsShortShort(toots):
 
     maxlen_id = max(len(row[0]) for row in out)
     maxlen_u = max(len(row[1]) for row in out)
-    maxwidth = maxlen_id+6+maxlen_u # 6 for " from " to space the columns
+    #maxwidth = maxlen_id+6+maxlen_u # 6 for " from " to space the columns
 
     out_l = out[:len(out)//2]
     out_r = out[len(out)//2:]

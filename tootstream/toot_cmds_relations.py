@@ -60,7 +60,7 @@ def follow_followers():
         cprint("  You're safe!  There's nobody following you", fg('red'))
     else:
         cprint("  People who follow you (" + str(len(users)) + "):", fg('magenta'))
-        printUsersShort(users)
+        printUsersShortShort(users)
 
 
 @_follow.command(    'following', options_metavar='',
@@ -75,7 +75,7 @@ def follow_following():
         cprint("  You aren't following anyone", fg('red'))
     else:
         cprint("  People you follow (" + str(len(users)) + "):", fg('magenta'))
-        printUsersShort(users)
+        printUsersShortShort(users)
 
 
 @_follow.command(    'requests', options_metavar='',
@@ -89,7 +89,7 @@ def follow_requests():
         cprint("  You have no incoming requests", fg('red'))
     else:
         cprint("  These users want to follow you:", fg('magenta'))
-        printUsersShort(users)
+        printUsersShortShort(users)
         cprint("  run 'accept <id>' to accept", fg('magenta'))
         cprint("   or 'reject <id>' to reject", fg('magenta'))
 
@@ -104,7 +104,7 @@ def follow_follow(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -129,7 +129,7 @@ def follow_unfollow(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -155,7 +155,7 @@ def follow_accept(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -184,7 +184,7 @@ def follow_reject(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -244,7 +244,7 @@ def block_list():
         cprint("  You haven't blocked anyone (... yet)", fg('red'))
     else:
         cprint("  You have blocked:", fg('magenta'))
-        printUsersShort(users)
+        printUsersShortShort(users)
 #aliases
 _block.add_command(block_list, 'l')
 _block.add_command(block_list, 'show')
@@ -260,7 +260,7 @@ def block_add(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -285,7 +285,7 @@ def block_remove(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -341,7 +341,7 @@ def mute_list():
         cprint("  You haven't muted anyone (... yet)", fg('red'))
     else:
         cprint("  You have muted:", fg('magenta'))
-        printUsersShort(users)
+        printUsersShortShort(users)
 #aliases
 _mute.add_command(mute_list, 'l')
 _mute.add_command(mute_list, 'show')
@@ -357,7 +357,7 @@ def mute_add(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
@@ -382,7 +382,7 @@ def mute_remove(username):
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
-        printUsersShort(userid)
+        printUsersShortShort(userid)
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
