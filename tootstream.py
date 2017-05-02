@@ -541,6 +541,9 @@ def search(query):
     \b
        search #tag         # performs a hashtag search for "tag"
        search @user        # performs a user search for "user"
+       search thing        # performs a general search; can return users, tags, toots
+       search http://other.mastodon.instance/full/url/to/user/or/toot
+                           # can get a local id for remote user or toot
     """
     mastodon = get_active_mastodon()
     prefix = query[0]
@@ -551,10 +554,43 @@ def search(query):
     elif prefix == "#" and not query[1:] == "":
         click.get_current_context().invoke(whatis, tag=query)
     else:
-        # TODO: unimplemented in Mastodon.py 1.0.6
-        #stuff = mastodon.content_search(query)
-        cprint("  Invalid format.", fg('red'))
+        stuff = mastodon.search(query)
+        users = None
+        toots = None
+        tags = None
+        if stuff:
+            users = stuff['accounts']
+            toots = stuff['statuses']
+            tags = stuff['hashtags']
 
+        summary = ', '.join( ' '.join(( str(len(x[0])), x[1]))             # format as "N label1, ..."
+                                for x in zip( [users, toots, tags],        #   for these lists
+                                              ["users", "toots", "tags"])  #   with these labels
+                                if x[0] and len(x[0])>0 )                  #   skipping empty lists
+        print_ui_msg("  Search: {} found {}".format(query, summary))
+
+        # TODO: nice columnized output for large results
+        if users and len(users)>0:
+            print_ui_msg("\n  User results:")
+            if len(users)<=2:
+                printUsersShort(users)
+            else:
+                # the short short version
+                printUsersShortShort(users)
+
+        if toots and len(toots)>0:
+            print_ui_msg("\n  Toot results:")
+            if len(toots)<=2:
+                for toot in toots:
+                    printTootSummary(toot)
+            else:
+                # the short short version
+                printTootsShortShort(toots)
+
+        if tags and len(tags)>0:
+            print_ui_msg("\n  Tag results:\n    {}".format(' '.join(tags)))
+
+        print("")
     return
 # aliases
 _tootstream.add_command(search, 's')
@@ -605,6 +641,7 @@ def raw(thisid, user):
     \b
        -u, --user    force treat argument as a user
 
+    \b
     Ex:   raw 100                   # gets toot with ID 100
           raw @foo                  # gets user foo
           raw -u 100                # gets user with ID 100
@@ -613,15 +650,14 @@ def raw(thisid, user):
     #  -g, --get    argument is an API endpoint (ie /api/v1/foo)
     mastodon = get_active_mastodon()
 
+    response = None
     if user or thisid[:1] == "@":
         userid = get_userid(thisid)
-        user = mastodon.account(userid)
-        print(str(user))
+        response = mastodon.account(userid)
     elif thisid[:1] == "/":
-        # lots of crash potential here
+        # undocumented easter egg. have fun.
         try:
             response = mastodon._Mastodon__api_request('GET', thisid)
-            print(str(response))
         except:
             pass
     else:
@@ -630,7 +666,12 @@ def raw(thisid, user):
             thisid = int(thisid)
         except:
             return print_error("are you sure '" + str(thisid) + "' is a real tootID?")
-        print(str(mastodon.status(thisid)))
+        response = mastodon.status(thisid)
+
+    if response:
+        # TODO: add --summarize and/or --prettify flags
+        #       to do something other than barf python dicts
+        print(str(response))
 #aliases
 
 

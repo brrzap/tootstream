@@ -435,6 +435,69 @@ def printUsersShort(users):
         printUserShort(user)
 
 
+def printUsersShortShort(users):
+    """Prints a list of users in compact columns."""
+    if not users: return
+
+    # TODO: smarter column size determinations
+    #(width, _) = click.get_terminal_size()
+    out = []  # collect pieces we want
+    for user in users:
+        out.append( [ _format_id(user), _format_username(user) ] )
+
+    # how many columns? append extra entries to fill
+    if len(users) % 2 != 0:
+        out.append( [ "", "" ] )
+
+    maxlen_id = max(len(row[0]) for row in out)
+    maxlen_u = max(len(row[1]) for row in out)
+    maxwidth = maxlen_id+2+maxlen_u # 2 for "  " to space the columns
+
+    out_l = out[:len(out)//2]
+    out_r = out[len(out)//2:]
+    for col_l, col_r in zip(out_l, out_r):
+        print( _indent*2 + "  ".join((
+                    stylize("{0: >{width}}".format(col_l[0], width=maxlen_id), fg('red')),
+                    stylize("{0: <{width}}".format(col_l[1], width=maxlen_u), fg(random.choice(COLORS))),
+                    stylize("{0: >{width}}".format(col_r[0], width=maxlen_id), fg('red')),
+                    stylize("{0: <{width}}".format(col_r[1], width=maxlen_u), fg(random.choice(COLORS))) )))
+
+    return
+
+
+def printTootsShortShort(toots):
+    """Prints a list of toots in compact columns."""
+    # ugly first version: 3 columns wide, unaligned
+    if not toots: return
+
+    # TODO: smarter column size determinations
+    #(width, _) = click.get_terminal_size()
+    out = []  # collect pieces we want
+    for toot in toots:
+        out.append( [ _format_id(toot), _format_username(toot['account']) ] )
+
+    # how many columns? append extra entries to fill
+    if len(users) % 2 != 0:
+        out.append( [ "", "" ] )
+
+    maxlen_id = max(len(row[0]) for row in out)
+    maxlen_u = max(len(row[1]) for row in out)
+    maxwidth = maxlen_id+6+maxlen_u # 6 for " from " to space the columns
+
+    out_l = out[:len(out)//2]
+    out_r = out[len(out)//2:]
+    for col_l, col_r in zip(out_l, out_r):
+        print( _indent*2 + " ".join((
+                    stylize("{0: >{width}}".format(col_l[0], width=maxlen_id), fg('red')),
+                    "from",
+                    stylize("{0: <{width}}".format(col_l[1], width=maxlen_u), fg(random.choice(COLORS))),
+                    " ",
+                    stylize("{0: >{width}}".format(col_r[0], width=maxlen_id), fg('red')),
+                    "from",
+                    stylize("{0: <{width}}".format(col_r[1], width=maxlen_u), fg(random.choice(COLORS))) )))
+
+    return
+
 
 __all__ = [ 'cprint',
             'get_content',
@@ -447,6 +510,8 @@ __all__ = [ 'cprint',
             'printUser',
             'printUserShort',
             'printUsersShort',
+            'printUsersShortShort',
+            'printTootsShortShort',
             'print_error',
             'print_ui_msg' ]
 
