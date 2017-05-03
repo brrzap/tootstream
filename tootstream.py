@@ -3,18 +3,14 @@
 import os.path
 import click
 import sys
-import re
-import configparser
-import random
-import readline
 from tootstream import *
-from tootstream.toot_click import CONTEXT_SETTINGS
+from tootstream.toot_click import *
 from tootstream.toot_utils import *
 from tootstream.toot_print import *
 from tootstream.toot_listener import *
-from click_shell import make_click_shell
 from mastodon import Mastodon
 from colored import fg, attr, stylize
+from prompt_toolkit.shortcuts import prompt
 
 #####################################
 ######## UTILITY FUNCTIONS # ########
@@ -53,6 +49,99 @@ def _tootstream():
     pass
 
 
+@_tootstream.command(cls=TootStreamCmd, hidden=True)
+def tsrepl():
+    """REPL overloader for click-repl."""
+    # for testing just define some helper functions here.
+
+    # for prompt styling
+    from prompt_toolkit import prompt
+    from prompt_toolkit.styles import style_from_dict
+    from prompt_toolkit.token import Token
+    # for fish-shell-esque autosuggest
+    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+    # for readline-style tab completion
+    from prompt_toolkit.key_binding.bindings.completion import display_completions_like_readline
+    from prompt_toolkit.key_binding.defaults import load_key_bindings
+    from prompt_toolkit.keys import Keys
+
+    registry = load_key_bindings( enable_abort_and_exit_bindings=True,   # allow Ctrl-C & Ctrl-D
+                                  enable_system_bindings=True,           # allow Ctrl-Z, meta-!
+                                  enable_search=True,                    # allow search bindings
+                                  enable_auto_suggest_bindings=False )   # fish-style suggestion bindings
+    registry.add_binding(Keys.ControlI)(display_completions_like_readline)
+
+    def get_username():
+        return get_user()['acct']
+
+    def get_instance():
+        p = get_config()[get_active_profile()]
+        return p['instance']
+
+    def get_prompt_tokens(cli):
+        return [
+                 (Token.Start,    '['   ),
+                 (Token.Username, '@{}'.format(get_username()) ),
+                 (Token.Sep,      ' '   ),
+                 (Token.Profile,  '({})'.format(get_active_profile()) ),
+                 (Token.End,      ']: ' )]
+
+    def get_bottom_toolbar_tokens(cli):
+        out = [ (Token.TbHeader, '   '),
+                (Token.Instance, get_instance()),
+                (Token.TbSep, ' ') ]
+        lsnrs = get_listeners()
+        if lsnrs and len(lsnrs)>0:
+            out += [ (Token.Toolbar, '   '),
+                     (Token.LstnHeader, '[listeners:'),
+                     (Token.TbSep, ' ') ]
+            for l in lsnrs:
+                if not l: continue
+                out.append( (Token.Listener, " {}".format(l._dbgname)) )
+
+            out.append( (Token.LstnFooter, ']') )
+
+        return out
+
+
+    example_style = style_from_dict({
+        # user input
+        Token: '#d0d0d0',
+
+        # prompt
+        Token.Start:      '#d0d0d0',
+        Token.Username:   '#00d7ff',
+        Token.Sep:        '#000000',
+        Token.Profile:    '#00ff5f',
+        Token.End:        '#d0d0d0',
+
+        # toolbar
+        Token.Toolbar:    '#ffff00 bg:#303030',
+        Token.TbHeader:   '#ffff00 bg:#303030',
+        Token.TbSep:      '#ffff00 bg:#303030',
+        Token.Instance:   '#af0000 bg:#303030',
+        Token.LstnHeader: '#af875f bg:#303030',
+        Token.Listener:   '#5f5fff bg:#303030',
+        Token.LstnFooter: '#af875f bg:#303030'
+    }) # end style
+
+    prompt_kwargs = { # prompt-toolkit options
+                      #
+                      #'history':  InMemoryHistory()  # click-repl default but we might want to tweak
+                      #'completer':  ClickCompleter(_tootstream) #click-repl default
+                      #'message':  # use get_prompt_tokens instead
+                      #'mouse_support': True    # clever but kills buffer scrollback
+                      'patch_stdout': True,                      # don't scroll the prompt?
+                      'auto_suggest': AutoSuggestFromHistory(),  # fish-shell autosuggestions
+                      'key_bindings_registry': registry,         # readline-style tab completion
+                      'complete_while_typing': False,            # ? docs say necessary
+                      'get_prompt_tokens': get_prompt_tokens,
+                      'get_bottom_toolbar_tokens': get_bottom_toolbar_tokens,
+                      'style': example_style
+                      }
+    repl(click.get_current_context(), prompt_kwargs=prompt_kwargs, allow_secondary_prompt=True)
+
+
 @_tootstream.command( 'help', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='get help for a command' )
@@ -62,7 +151,10 @@ def help(cmd):
     ctx = click.get_current_context()
     if not cmd is None:
         c = _tootstream.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_tootstream.get_help(ctx))
 
@@ -754,17 +846,12 @@ def main(instance, email, password, config, profile, notifications):
     print("\n")
 
     user = mastodon.account_verify_credentials()
-    prompt = stylePrompt(user['username'], profile, fg('blue'), fg('cyan'))
+    set_user(user)
 
-    # setup shell
-    #ctx = _tootstreamCommands.make_context('tootstreamShell', [], parent=click.get_current_context())
+    # setup repr
     ctx = _tootstream.make_context('tootstreamShell', [], parent=click.get_current_context())
-    shell = make_click_shell(ctx, prompt=prompt, intro='', hist_file='/dev/null')
-    # push shell object onto the context to enable dynamic prompt
-    set_shell(shell)
-    set_prompt(prompt)
-    # and go
-    shell.cmdloop()
+    ctx.invoke(tsrepl)
+
     print("Goodbye!")
 
 

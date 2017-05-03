@@ -11,9 +11,8 @@ RESERVED = ( "theme", "global" )
 KEYCFGFILE = __name__ + 'cfgfile'
 KEYCONFIG = __name__ + 'config'
 KEYPROFILE = __name__ + 'profile'
-KEYPROMPT = __name__ + 'prompt'
+KEYUSER = __name__ + 'user'
 KEYMASTODON = __name__ + 'mastodon'
-KEYSHELL = __name__ + 'shell'
 KEYLISTENERS = __name__ + 'listeners'
 KEYNOTIFICATIONS = __name__ + 'notifications'
 
@@ -27,20 +26,13 @@ def get_configfile():
     return click.get_current_context().meta.get(KEYCFGFILE)
 
 
-def set_prompt(prompt):
-    ctx = click.get_current_context()
-    ctx.meta[KEYPROMPT] = prompt
-    ctx.meta[KEYSHELL].prompt = prompt
+def set_user(user):
+    click.get_current_context().meta[KEYUSER] = user
     return
 
 
-def set_shell(shell):
-    click.get_current_context().meta[KEYSHELL] = shell
-    return
-
-
-def get_prompt():
-    return click.get_current_context().meta.get(KEYPROMPT)
+def get_user():
+    return click.get_current_context().meta.get(KEYUSER)
 
 
 def set_config(config):
@@ -257,10 +249,9 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
 
 __all__ = [ 'set_configfile', 'get_configfile',
             'set_config', 'get_config',
-            'set_prompt', 'get_prompt',
+            'set_user', 'get_user',
             'set_active_profile', 'get_active_profile',
             'set_active_mastodon', 'get_active_mastodon',
-            'set_shell',
             'get_profile_values',
             'get_known_profiles',
             'get_userid',

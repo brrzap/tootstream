@@ -211,7 +211,7 @@ def profile_add(profile, instance, email, password):
         'token': token
     }
     user = newmasto.account_verify_credentials()
-    set_prompt( stylePrompt(user['username'], profile, fg('blue'), fg('cyan')) )
+    set_user(user)
     set_active_profile(profile)
     set_active_mastodon(newmasto)
     if get_notifications():
@@ -279,7 +279,7 @@ def profile_load(profile):
 
         # update stuff
         user = newmasto.account_verify_credentials()
-        set_prompt( stylePrompt(user['username'], profile, fg('blue'), fg('cyan')) )
+        set_user(user)
         set_active_profile(profile)
         set_active_mastodon(newmasto)
         if get_notifications():
