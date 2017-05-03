@@ -4,8 +4,8 @@ from .toot_utils import add_listener, get_listeners
 import multiprocessing
 
 
-__all__: [ 'TootDesktopNotifications',
-           'kick_new_process' ]
+__all__ = [ 'TootDesktopNotifications',
+            'kick_new_process' ]
 
 
 def kick_new_process(targetstream, listener, tag=None):
