@@ -5,6 +5,8 @@ import multiprocessing
 
 
 __all__ = [ 'TootDesktopNotifications',
+            'seek_and_destroy',
+            'seek_and_kick',
             'kick_new_process' ]
 
 
