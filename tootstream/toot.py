@@ -745,6 +745,7 @@ def ts_search(mastodon, rest):
     return
 # register argstr & aliases
 ts_search.__argstr__ = '<query>'
+commands['wtf'] = ts_search
 
 
 @command
@@ -769,6 +770,7 @@ def ts_followers(mastodon, rest):
         printUsersShort(users)
 # register argstr & aliases
 ts_followers.__argstr__ = ''
+commands['f-ers'] = ts_followers
 
 
 @command
@@ -783,6 +785,7 @@ def ts_following(mastodon, rest):
         printUsersShort(users)
 # register argstr & aliases
 ts_following.__argstr__ = ''
+commands['f-ing'] = ts_following
 
 
 @command
@@ -858,6 +861,7 @@ def ts_accept(mastodon, rest):
 # register argstr & aliases
 ts_accept.__argstr__ = '<user>'
 commands['acc'] = ts_accept
+commands['f-yeh'] = ts_accept
 
 
 @command
@@ -888,6 +892,7 @@ def ts_reject(mastodon, rest):
 # register argstr & aliases
 ts_reject.__argstr__ = '<user>'
 commands['rej'] = ts_reject
+commands['f-no'] = ts_reject
 
 
 @command
