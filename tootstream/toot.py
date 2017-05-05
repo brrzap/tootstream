@@ -193,11 +193,14 @@ def printUsersShort(users):
 ######## DECORATORS          ########
 #####################################
 commands = OrderedDict()
-
+aliases = None
+rmts = re.compile(r'^ts_')
 
 def command(func):
     """Adds the function to the command list."""
-    commands[func.__name__] = func
+    # strip leading "ts_"
+    name = rmts.sub('', func.__name__)
+    commands[name] = func
     return func
 
 
@@ -206,17 +209,40 @@ def command(func):
 #####################################
 __friendly_cmd_error__ = 'Unable to comply.  Command not found: "{}"'
 __friendly_help_header__ = """
-Tootstream Help:
-===============
-  usage: {} {}
+ Tootstream Help:
+ ===============
+    usage: {} {}
+  aliases: {}
 
-{}
+  {}
 """
 
 
 @command
-def help(mastodon, rest):
+def ts_help(mastodon, rest):
     """List all commands or show detailed help."""
+    # initialize cache if needed
+    global aliases
+    if not aliases:
+        # 1. flip the commands dict.
+        flipped = {}
+        for c, f in commands.items():
+            # c: cmdname or alias
+            # f: function
+            if c is None: continue
+            # if haven't seen this f before, add it
+            if f not in flipped: flipped[f] = []
+            flipped[f].append(c)
+
+        # 2. run through again, to sort the rows and set .__aliases__ str
+        for f in flipped.keys():
+            if not flipped[f]: continue
+            flipped[f].sort()
+            f.__aliases__ = '|'.join(flipped[f])
+
+        # 3. store the cache
+        aliases = flipped
+
     # argument case
     if rest and rest != '':
         try:
@@ -228,40 +254,48 @@ def help(mastodon, rest):
 
         try:
             cmd_args = cmd_func.__argstr__
+            cmd_aliases = ', '.join(cmd_func.__aliases__.split('|'))
         except:
             cmd_args = ''
+            cmd_aliases = ''
         # print a friendly header and the detailed help
-        print(__friendly_help_header__.format( cmd_func.__name__,
+        print(__friendly_help_header__.format( args[0],   # use what the user asked about
                                                cmd_args,
+                                               cmd_aliases,
                                                cmd_func.__doc__ ))
         return
 
     # no argument, show full list
     print("Commands:")
-    for command, cmd_func in commands.items():
+    for cmd_func in aliases.keys():
         # get only the docstring's first line for the column view
         (cmd_doc, *_) = cmd_func.__doc__.partition('\n')
         try:
             cmd_args = cmd_func.__argstr__
         except:
             cmd_args = ''
-        print("{:>15} {:<11}  {:<}".format(command, cmd_args, cmd_doc))
-help.__argstr__ = '<cmd>'
+        print("{:>17} {:<11}  {:<}".format(cmd_func.__aliases__, cmd_args, cmd_doc))
+# register argstr & aliases
+ts_help.__argstr__ = '<cmd>'
+commands['h'] = ts_help
 
 
 @command
-def toot(mastodon, rest):
+def ts_toot(mastodon, rest):
     """Publish a toot.
 
     ex: 'toot Hello World' will publish 'Hello World'."""
     mastodon.toot(rest)
     cprint("You tooted: ", fg('white') + attr('bold'), end="")
     cprint(rest, fg('magenta') + attr('bold') + attr('underlined'))
-toot.__argstr__ = '<text>'
+# register argstr & aliases
+ts_toot.__argstr__ = '<text>'
+commands['t'] = ts_toot
+commands['post'] = ts_toot
 
 
 @command
-def rep(mastodon, rest):
+def ts_reply(mastodon, rest):
     """Reply to a toot by ID."""
     command = rest.split(' ', 1)
     parent_id = IDS.to_global(command[0])
@@ -281,22 +315,28 @@ def rep(mastodon, rest):
                                       in_reply_to_id=int(parent_id))
     msg = "  Replied with: " + get_content(reply_toot)
     cprint(msg, fg('red'))
-rep.__argstr__ = '<id> <text>'
+# register argstr & aliases
+ts_reply.__argstr__ = '<id> <text>'
+commands['r'] = ts_reply
+commands['rep'] = ts_reply
 
 
 @command
-def delete(mastodon, rest):
+def ts_delete(mastodon, rest):
     """Deletes your toot by ID"""
     rest = IDS.to_global(rest)
     if rest is None:
         return
     mastodon.status_delete(rest)
     print("Poof! It's gone.")
-delete.__argstr__ = '<id>'
+# register argstr & aliases
+ts_delete.__argstr__ = '<id>'
+commands['del'] = ts_delete
+commands['rm'] = ts_delete
 
 
 @command
-def boost(mastodon, rest):
+def ts_boost(mastodon, rest):
     """Boosts a toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
@@ -305,11 +345,12 @@ def boost(mastodon, rest):
     boosted = mastodon.status(rest)
     msg = "  You boosted: ", fg('white') + get_content(boosted)
     cprint(msg, fg('green'))
-boost.__argstr__ = '<id>'
+# register argstr & aliases
+ts_boost.__argstr__ = '<id>'
 
 
 @command
-def unboost(mastodon, rest):
+def ts_unboost(mastodon, rest):
     """Removes a boosted tweet by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
@@ -318,11 +359,12 @@ def unboost(mastodon, rest):
     unboosted = mastodon.status(rest)
     msg = "  Removed boost: " + get_content(unboosted)
     cprint(msg, fg('red'))
-unboost.__argstr__ = '<id>'
+# register argstr & aliases
+ts_unboost.__argstr__ = '<id>'
 
 
 @command
-def fav(mastodon, rest):
+def ts_fav(mastodon, rest):
     """Favorites a toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
@@ -331,11 +373,13 @@ def fav(mastodon, rest):
     faved = mastodon.status(rest)
     msg = "  Favorited: " + get_content(faved)
     cprint(msg, fg('red'))
-fav.__argstr__ = '<id>'
+# register argstr & aliases
+ts_fav.__argstr__ = '<id>'
+commands['star'] = ts_fav
 
 
 @command
-def unfav(mastodon, rest):
+def ts_unfav(mastodon, rest):
     """Removes a favorite toot by ID."""
     rest = IDS.to_global(rest)
     if rest is None:
@@ -344,11 +388,12 @@ def unfav(mastodon, rest):
     unfaved = mastodon.status(rest)
     msg = "  Removed favorite: " + get_content(unfaved)
     cprint(msg, fg('yellow'))
-unfav.__argstr__ = '<id>'
+# register argstr & aliases
+ts_unfav.__argstr__ = '<id>'
 
 
 @command
-def home(mastodon, rest):
+def ts_home(mastodon, rest):
     """Displays the Home timeline."""
     for toot in reversed(mastodon.timeline_home()):
         display_name = "  " + toot['account']['display_name'] + " "
@@ -376,11 +421,12 @@ def home(mastodon, rest):
             content = get_content(toot)
 
         print(content + "\n")
-home.__argstr__ = ''
+# register argstr & aliases
+ts_home.__argstr__ = ''
 
 
 @command
-def fed(mastodon, rest):
+def ts_fed(mastodon, rest):
     """Displays the Federated timeline."""
     for toot in reversed(mastodon.timeline_public()):
         display_name = "  " + toot['account']['display_name']
@@ -409,11 +455,13 @@ def fed(mastodon, rest):
             content = get_content(toot)
 
         print(content + "\n")
-fed.__argstr__ = ''
+# register argstr & aliases
+ts_fed.__argstr__ = ''
+commands['public'] = ts_fed
 
 
 @command
-def local(mastodon, rest):
+def ts_local(mastodon, rest):
     """Displays the Public timeline."""
     for toot in reversed(mastodon.timeline_public()):
         display_name = "  " + toot['account']['display_name']
@@ -443,11 +491,12 @@ def local(mastodon, rest):
             content = get_content(toot)
 
         print(content + "\n")
-local.__argstr__ = ''
+# register argstr & aliases
+ts_local.__argstr__ = ''
 
 
 @command
-def note(mastodon, rest):
+def ts_note(mastodon, rest):
     """Displays the Notifications timeline."""
     for note in reversed(mastodon.notifications()):
         display_name = "  " + note['account']['display_name']
@@ -492,11 +541,12 @@ def note(mastodon, rest):
 
         # blank line
         print('')
-note.__argstr__ = ''
+# register argstr & aliases
+ts_note.__argstr__ = ''
 
 
 @command
-def block(mastodon, rest):
+def ts_block(mastodon, rest):
     """Blocks a user by username or id.
 
     ex: block 23
@@ -515,11 +565,12 @@ def block(mastodon, rest):
                 cprint("  user " + str(userid) + " is now blocked", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-block.__argstr__ = '<user>'
+# register argstr & aliases
+ts_block.__argstr__ = '<user>'
 
 
 @command
-def unblock(mastodon, rest):
+def ts_unblock(mastodon, rest):
     """Unblocks a user by username or id.
 
     ex: unblock 23
@@ -538,11 +589,12 @@ def unblock(mastodon, rest):
                 cprint("  user " + str(userid) + " is now unblocked", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-unblock.__argstr__ = '<user>'
+# register argstr & aliases
+ts_unblock.__argstr__ = '<user>'
 
 
 @command
-def follow(mastodon, rest):
+def ts_follow(mastodon, rest):
     """Follows an account by username or id.
 
     ex: follow 23
@@ -561,11 +613,12 @@ def follow(mastodon, rest):
                 cprint("  user " + str(userid) + " is now followed", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-follow.__argstr__ = '<user>'
+# register argstr & aliases
+ts_follow.__argstr__ = '<user>'
 
 
 @command
-def unfollow(mastodon, rest):
+def ts_unfollow(mastodon, rest):
     """Unfollows an account by username or id.
 
     ex: unfollow 23
@@ -584,11 +637,12 @@ def unfollow(mastodon, rest):
                 cprint("  user " + str(userid) + " is now unfollowed", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-unfollow.__argstr__ = '<user>'
+# register argstr & aliases
+ts_unfollow.__argstr__ = '<user>'
 
 
 @command
-def mute(mastodon, rest):
+def ts_mute(mastodon, rest):
     """Mutes a user by username or id.
 
     ex: mute 23
@@ -607,11 +661,12 @@ def mute(mastodon, rest):
                 cprint("  user " + str(userid) + " is now muted", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-mute.__argstr__ = '<user>'
+# register argstr & aliases
+ts_mute.__argstr__ = '<user>'
 
 
 @command
-def unmute(mastodon, rest):
+def ts_unmute(mastodon, rest):
     """Unmutes a user by username or id.
 
     ex: unmute 23
@@ -630,11 +685,12 @@ def unmute(mastodon, rest):
                 cprint("  user " + str(userid) + " is now unmuted", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-unmute.__argstr__ = '<user>'
+# register argstr & aliases
+ts_unmute.__argstr__ = '<user>'
 
 
 @command
-def search(mastodon, rest):
+def ts_search(mastodon, rest):
     """Search for a #tag or @user.
 
     ex:  search #tagname
@@ -687,19 +743,22 @@ def search(mastodon, rest):
         cprint("  Invalid format.\n"+usage, fg('red'))
 
     return
-search.__argstr__ = '<query>'
+# register argstr & aliases
+ts_search.__argstr__ = '<query>'
 
 
 @command
-def info(mastodon, rest):
+def ts_info(mastodon, rest):
     """Prints your user info."""
     user = mastodon.account_verify_credentials()
     printUser(user)
-info.__argstr__ = ''
+# register argstr & aliases
+ts_info.__argstr__ = ''
+commands['whoami'] = ts_info
 
 
 @command
-def followers(mastodon, rest):
+def ts_followers(mastodon, rest):
     """Lists users who follow you."""
     user = mastodon.account_verify_credentials()
     users = mastodon.account_followers(user['id'])
@@ -708,11 +767,12 @@ def followers(mastodon, rest):
     else:
         cprint("  Your followers:", fg('magenta'))
         printUsersShort(users)
-followers.__argstr__ = ''
+# register argstr & aliases
+ts_followers.__argstr__ = ''
 
 
 @command
-def following(mastodon, rest):
+def ts_following(mastodon, rest):
     """Lists users you follow."""
     user = mastodon.account_verify_credentials()
     users = mastodon.account_following(user['id'])
@@ -721,11 +781,12 @@ def following(mastodon, rest):
     else:
         cprint("  People following you:", fg('magenta'))
         printUsersShort(users)
-following.__argstr__ = ''
+# register argstr & aliases
+ts_following.__argstr__ = ''
 
 
 @command
-def blocks(mastodon, rest):
+def ts_blocks(mastodon, rest):
     """Lists users you have blocked."""
     users = mastodon.blocks()
     if not users:
@@ -733,11 +794,12 @@ def blocks(mastodon, rest):
     else:
         cprint("  You have blocked:", fg('magenta'))
         printUsersShort(users)
-blocks.__argstr__ = ''
+# register argstr & aliases
+ts_blocks.__argstr__ = ''
 
 
 @command
-def mutes(mastodon, rest):
+def ts_mutes(mastodon, rest):
     """Lists users you have muted."""
     users = mastodon.mutes()
     if not users:
@@ -745,11 +807,12 @@ def mutes(mastodon, rest):
     else:
         cprint("  You have muted:", fg('magenta'))
         printUsersShort(users)
-mutes.__argstr__ = ''
+# register argstr & aliases
+ts_mutes.__argstr__ = ''
 
 
 @command
-def requests(mastodon, rest):
+def ts_requests(mastodon, rest):
     """Lists your incoming follow requests.
 
     Run 'accept id' to accept a request
@@ -762,11 +825,13 @@ def requests(mastodon, rest):
         printUsersShort(users)
         cprint("  run 'accept <id>' to accept", fg('magenta'))
         cprint("   or 'reject <id>' to reject", fg('magenta'))
-requests.__argstr__ = ''
+# register argstr & aliases
+ts_requests.__argstr__ = ''
+commands['req'] = ts_requests
 
 
 @command
-def accept(mastodon, rest):
+def ts_accept(mastodon, rest):
     """Accepts a user's follow request by username or id.
 
     ex: accept 23
@@ -790,11 +855,13 @@ def accept(mastodon, rest):
                 cprint("  user " + str(userid) + "'s request is accepted", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-accept.__argstr__ = '<user>'
+# register argstr & aliases
+ts_accept.__argstr__ = '<user>'
+commands['acc'] = ts_accept
 
 
 @command
-def reject(mastodon, rest):
+def ts_reject(mastodon, rest):
     """Rejects a user's follow request by username or id.
 
     ex: reject 23
@@ -818,14 +885,18 @@ def reject(mastodon, rest):
                 cprint("  user " + str(userid) + "'s request is rejected", fg('blue'))
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
-reject.__argstr__ = '<user>'
+# register argstr & aliases
+ts_reject.__argstr__ = '<user>'
+commands['rej'] = ts_reject
 
 
 @command
-def quit(mastodon, rest):
+def ts_quit(mastodon, rest):
     """Ends the program."""
     sys.exit("Goodbye!")
-quit.__argstr__ = ''
+# register argstr & aliases
+ts_quit.__argstr__ = ''
+commands['exit'] = ts_quit
 
 
 #####################################
