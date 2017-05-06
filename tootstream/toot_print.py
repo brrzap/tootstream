@@ -94,9 +94,9 @@ def _format_username(user):
     return "@" + user['acct']
 
 def _format_usercounts(user):
-    return ''.join(( GLYPHS['toots'], ":", str(user['statuses_count']), " ",
-                     GLYPHS['following'], ":", str(user['following_count']), " ",
-                     GLYPHS['followed_by'], ":", str(user['followers_count']) ))
+    return ''.join(( GLYPHS['toots'], " :", str(user['statuses_count']), " ",
+                     GLYPHS['following'], " :", str(user['following_count']), " ",
+                     GLYPHS['followed_by'], " :", str(user['followers_count']) ))
 
 
 ### Toot dict formatting

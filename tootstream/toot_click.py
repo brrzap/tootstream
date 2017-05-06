@@ -131,17 +131,38 @@ def get_prompt_tokens(cli):
              (Token.End,      ']: ' ) ]
 
 def get_bottom_toolbar_tokens(cli):
+    """Define a nifty bottom-aligned statusbar."""
+    from .toot_print import _format_usercounts
+    from wcwidth import wcswidth
+
+    # leftside: instance
+    instance = get_instance()
+    usercounts = _format_usercounts(get_user())
     out = [ (Token.TbHeader, '   '),
-            (Token.Instance, get_instance()),
-            (Token.TbSep, ' ') ]
+            (Token.Instance, instance),
+            (Token.TbSep, ' '),
+            (Token.UserCounts, usercounts) ]
+
+    # rightside: active listeners
     lsnrs = get_listeners()
     if lsnrs and len(lsnrs)>0:
-        out += [ (Token.Toolbar, '   '),
-                 (Token.LstnHeader, '[listeners:'),
-                 (Token.TbSep, ' ') ]
-        for l in lsnrs:
-            if not l: continue
-            out.append( (Token.Listener, " {}".format(l._dbgname)) )
+        (width, _) = click.get_terminal_size()
+        lstnheader = '[listeners:'
+        lsnrstring = "{}".format(' '.join( (l._dbgname for l in lsnrs) ))
+        lsnrslen = wcswidth(lsnrstring)       # min length of full lsnr list
+        if lsnrslen > (width*3//4):
+            # lsnr list is too long, summarize
+            lsnrstring = "{} listeners".format(str(len(lsnrs)))
+
+        spacerlen = int( width
+                        - (5 + wcswidth(instance) + wcswidth(usercounts))  # leftside length
+                        - (5 + wcswidth(lstnheader))           # rightside header+footer
+                        - (1 + wcswidth(lsnrstring)) )         # rightside content
+
+        out += [ (Token.TbSep, ' '*spacerlen),
+                 (Token.LstnHeader, lstnheader),
+                 (Token.TbSep, ' '),
+                 (Token.Listener, lsnrstring) ]
 
         out.append( (Token.LstnFooter, ']') )
 
@@ -164,6 +185,7 @@ ts_prompt_toolbar_style = style_from_dict({
     Token.TbHeader:   '#ffff00 bg:#303030',
     Token.TbSep:      '#ffff00 bg:#303030',
     Token.Instance:   '#af0000 bg:#303030',
+    Token.UserCounts: '#5f87ff bg:#303030',
     Token.LstnHeader: '#af875f bg:#303030',
     Token.Listener:   '#5f5fff bg:#303030',
     Token.LstnFooter: '#af875f bg:#303030'
