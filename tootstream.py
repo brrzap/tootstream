@@ -603,6 +603,7 @@ def search(query):
     return
 # aliases
 _tootstream.add_command(search, 's')
+_tootstream.add_command(search, 'wtf')
 
 
 @_tootstream.command( 'info', options_metavar='',

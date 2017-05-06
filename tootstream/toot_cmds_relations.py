@@ -61,6 +61,7 @@ def follow_followers():
     else:
         cprint("  People who follow you (" + str(len(users)) + "):", fg('magenta'))
         printUsersShortShort(users)
+_follow.add_command(follow_followers, 'f-ers')
 
 
 @_follow.command(    'following', options_metavar='',
@@ -76,6 +77,7 @@ def follow_following():
     else:
         cprint("  People you follow (" + str(len(users)) + "):", fg('magenta'))
         printUsersShortShort(users)
+_follow.add_command(follow_following, 'f-ing')
 
 
 @_follow.command(    'requests', options_metavar='',
@@ -92,6 +94,7 @@ def follow_requests():
         printUsersShortShort(users)
         cprint("  run 'accept <id>' to accept", fg('magenta'))
         cprint("   or 'reject <id>' to reject", fg('magenta'))
+_follow.add_command(follow_requests, 'req')
 
 
 @_follow.command(    'follow', options_metavar='',
@@ -172,6 +175,7 @@ def follow_accept(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 #aliases
 _follow.add_command(follow_accept, 'ok')
+_follow.add_command(follow_accept, 'f-yeh')
 
 
 @_follow.command(    'reject', options_metavar='',
@@ -201,7 +205,7 @@ def follow_reject(username):
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
 #aliases
 _follow.add_command(follow_reject, 'no')
-_follow.add_command(follow_reject, 'fkno')
+_follow.add_command(follow_reject, 'f-no')
 
 
 #####################################

@@ -29,13 +29,14 @@ $ ./tootstream.py
 
 ### experimental features
 
+* "colorful" statusbar (i.am.not.a.theme.designer.sorry)
 * popup desktop notifications (`-n`) (**requires external dependencies**)
 * multiple accounts via profiles
 * follow/block/mute list management commands
-* tag/username search commands
+* tag/username/general search commands (search by URL for other posts on other instances)
 * list favourites, user timelines
 * thread/history command
-* toot/reply with media attachments, spoiler text, visibility settings
+* toot/reply with media attachments, spoiler text, visibility settings, multiline input like bash
 * colored prompt
 * command aliases
 * tab completion for commands

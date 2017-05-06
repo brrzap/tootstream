@@ -175,7 +175,7 @@ ts_prompt_toolbar_style = style_from_dict({
 
     # prompt
     Token.Start:      '#d0d0d0',
-    Token.Username:   '#00d7ff',
+    Token.Username:   '#5f87ff',
     Token.Sep:        '#000000',
     Token.Profile:    '#00ff5f',
     Token.End:        '#d0d0d0',
