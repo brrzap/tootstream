@@ -27,6 +27,7 @@ def _follow():
                 requests:  displays who wants to follow you
                   accept:  accepts a follow request
                   reject:  rejects a follow request
+                    show:  display your relations with a user
     """
     # TODO: add `list` subcommand that will display all 3 lists as
     #       well as leaders/groupies/friends designations.
@@ -206,6 +207,41 @@ def follow_reject(username):
 #aliases
 _follow.add_command(follow_reject, 'no')
 _follow.add_command(follow_reject, 'f-no')
+
+
+@_follow.command(    'show', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='show relations with a user' )
+@click.argument('username', metavar='<user>')
+def follow_show(username):
+    """Show relations between you and another user."""
+    mastodon = get_active_mastodon()
+    users = mastodon.account_search(username)
+    if not users:
+        print_error("  user {} not found".format(username))
+        return
+
+    if len(users) > 1:
+        cprint("  found {} matches:".format(len(users)), fg('magenta'))
+
+    ids = [ user['id'] for user in users ]
+    try:
+        relations = mastodon.account_relationships(ids)
+    except:
+        print_error("  ... well, it *looked* like it was working ...")
+
+    if len(relations) != len(users):
+        print_error("dbg: userlist ({}) not same size as relations ({})".format(len(users), len(relations)))
+
+    # users and relations lists not guaranteed to be in the same order
+    for rel in relations:
+        user = next((user for user in users if user['id'] == rel['id']), None)
+        if not user:
+            print_error("dbg: no matching user found for id:{}".format(rel['id']))
+            continue
+        printUserRelations(user, rel)
+
+#aliases
 
 
 #####################################

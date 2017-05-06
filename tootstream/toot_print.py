@@ -513,6 +513,23 @@ def printTootsShortShort(toots):
     return
 
 
+def printUserRelations(user, relation):
+    # collect phrases for relation keys
+    them    = [ ("follows you" if relation['followed_by'] else "doesn't follow you"),
+                ("and has requested to follow you" if relation['requested'] else "") ]
+    you     = [ ("are following" if relation['following'] else 'are not following'),
+                ("are blocking" if relation['blocking'] else ''),
+                ("are muting" if relation['muting'] else '') ]
+    # sort out the empties and join
+    themstr = ' '.join([x for x in them if x != ''])
+    youstr  = ', '.join([x for x in you if x != ''])
+    # and print
+    print("  {} {} {}".format( stylize(_format_id(user), fg('red')),
+                               stylize(_format_username(user), fg('blue')),
+                               themstr ))
+    print("      {} {}".format( stylize("you", fg('cyan')), youstr ))
+
+
 __all__ = [ 'cprint',
             'get_content',
             'stylePrompt',
@@ -526,6 +543,7 @@ __all__ = [ 'cprint',
             'printUsersShort',
             'printUsersShortShort',
             'printTootsShortShort',
+            'printUserRelations',
             'print_error',
             'print_ui_msg' ]
 
