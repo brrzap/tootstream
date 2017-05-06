@@ -6,6 +6,7 @@ from mastodon import Mastodon
 from colored import fg, attr, stylize
 from .toot_parser import *
 from textwrap import indent as tw_indent
+from wcwidth import wcswidth
 #from .toot_utils import get_active_profile, get_known_profile, get_active_mastodon
 
 #####################################
@@ -68,6 +69,27 @@ def collapse(text):
     text = re.sub(r'[ \t\n\r\f\v\xa0]+', ' ', text)     # ascii whitespace + nbsp (preserve unicode)
     return text
 
+
+def wcs_ljust(text, width, fill=' '):
+    """Wide-character-aware left-justify.  Uses wcswidth to guess correct spacing for wide characters.
+    Returns text unchanged if larger than the supplied field width.
+
+    width: field width to fill
+    fill: string to repeat as filler"""
+    if wcswidth(text)>=width: return text
+    out = text + fill*((width-wcswidth(text))//wcswidth(fill))
+    return out
+
+
+def wcs_rjust(text, width, fill=' '):
+    """Wide-character-aware right-justify.  Uses wcswidth to guess correct spacing for wide characters.
+    Returns text unchanged if larger than the supplied field width.
+
+    width: field width to fill
+    fill: string to repeat as filler"""
+    if wcswidth(text)>=width: return text
+    out = fill*((width-wcswidth(text))//wcswidth(fill)) + text
+    return out
 
 #####################################
 ######## FORMAT HELPERS      ########
@@ -441,26 +463,24 @@ def printUsersShortShort(users):
 
     # TODO: smarter column size determinations
     #(width, _) = click.get_terminal_size()
-    out = []  # collect pieces we want
-    for user in users:
-        out.append( [ _format_id(user), _format_username(user) ] )
+    out = [ [_format_id(user), _format_username(user)] for user in users ]
 
     # how many columns? append extra entries to fill
     if len(users) % 2 != 0:
         out.append( [ "", "" ] )
 
     maxlen_id = max(len(row[0]) for row in out)
-    maxlen_u = max(len(row[1]) for row in out)
+    maxlen_u = max(wcswidth(row[1]) for row in out)
     #maxwidth = maxlen_id+2+maxlen_u # 2 for "  " to space the columns
 
     out_l = out[:len(out)//2]
     out_r = out[len(out)//2:]
     for col_l, col_r in zip(out_l, out_r):
-        print( _indent*2 + "  ".join((
-                    stylize("{0: >{width}}".format(col_l[0], width=maxlen_id), fg('red')),
-                    stylize("{0: <{width}}".format(col_l[1], width=maxlen_u), fg(random.choice(COLORS))),
-                    stylize("{0: >{width}}".format(col_r[0], width=maxlen_id), fg('red')),
-                    stylize("{0: <{width}}".format(col_r[1], width=maxlen_u), fg(random.choice(COLORS))) )))
+        print( _indent*2 + " ".join((
+                    stylize( wcs_rjust(col_l[0], maxlen_id), fg('red') ),
+                    stylize( wcs_ljust(col_l[1], maxlen_u), fg(random.choice(COLORS)) ),
+                    stylize( wcs_rjust(col_r[0], maxlen_id), fg('red') ),
+                    stylize( wcs_ljust(col_r[1], maxlen_u), fg(random.choice(COLORS)) ) )))
 
     return
 
@@ -471,29 +491,27 @@ def printTootsShortShort(toots):
 
     # TODO: smarter column size determinations
     #(width, _) = click.get_terminal_size()
-    out = []  # collect pieces we want
-    for toot in toots:
-        out.append( [ _format_id(toot), _format_username(toot['account']) ] )
+    out = [ [_format_id(toot), _format_username(toot['account'])] for toot in toots ]
 
     # how many columns? append extra entries to fill
     if len(users) % 2 != 0:
         out.append( [ "", "" ] )
 
     maxlen_id = max(len(row[0]) for row in out)
-    maxlen_u = max(len(row[1]) for row in out)
+    maxlen_u = max(wcswidth(row[1]) for row in out)
     #maxwidth = maxlen_id+6+maxlen_u # 6 for " from " to space the columns
 
     out_l = out[:len(out)//2]
     out_r = out[len(out)//2:]
     for col_l, col_r in zip(out_l, out_r):
         print( _indent*2 + " ".join((
-                    stylize("{0: >{width}}".format(col_l[0], width=maxlen_id), fg('red')),
-                    "from",
-                    stylize("{0: <{width}}".format(col_l[1], width=maxlen_u), fg(random.choice(COLORS))),
+                    stylize( wcs_rjust(col_l[0], maxlen_id), fg('red') ),
+                    " from ",
+                    stylize( wcs_ljust(col_l[1], maxlen_u), fg(random.choice(COLORS)) ),
                     " ",
-                    stylize("{0: >{width}}".format(col_r[0], width=maxlen_id), fg('red')),
-                    "from",
-                    stylize("{0: <{width}}".format(col_r[1], width=maxlen_u), fg(random.choice(COLORS))) )))
+                    stylize( wcs_rjust(col_r[0], maxlen_id), fg('red') ),
+                    " from ",
+                    stylize( wcs_ljust(col_r[1], maxlen_u), fg(random.choice(COLORS)) ) )))
 
     return
 
