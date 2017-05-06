@@ -253,6 +253,16 @@ def _style_media_list(toot, style=[], prefix='', suffix=''):
     return stylize('\n'.join(out), style)
 
 
+def _style_toot_summary_line(toot, style=[], ind=_indent):
+    # [CW...]: content summary... [media:N:NSFW]
+    content = stylize(get_content_trimmed(toot), style)
+    if toot['spoiler_text']:
+        content = "{}: {}".format( stylize(_format_spoiler_trimmed(toot), fg('red')), content )
+    if toot['media_attachments']:
+        content += _style_media_summary(toot, fg('magenta'))
+    return content
+
+
 def _style_toot_historytheme(toot, ind=_indent):
     out = []
     out.append( _style_name_line(toot['account'], fg('green'), fg('yellow')) )
@@ -341,12 +351,7 @@ def printTootSummary(toot):
     """Short 4-line summary: name line, id line, spoiler/content line, media summary."""
     print( _indent + _style_name_line(toot['account'], fg(random.choice(COLORS))) )
     print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
-    content = get_content_trimmed(toot)
-    if toot['spoiler_text']:
-        cprint(_indent + _format_spoiler_trimmed(toot), fg('red'), end=": ")
-    cprint(content, fg('white'))
-    if toot['media_attachments']:
-        print(_style_media_summary(toot, fg('magenta'), prefix=_indent))
+    print( _indent + _style_toot_summary_line(toot, fg('grey_78')) )
     print("")
 
 
@@ -379,12 +384,7 @@ def printTimelineToot(toot):
         # TODO: cut down to 1 line of context; user can use thread cmd if they need more
         repliedToot = mastodon.status(toot['in_reply_to_id'])
         print(_indent + _style_tootid_username(repliedToot, fg('blue'), prefix='Replied to ', suffix=':'))
-        repliedTootContent = get_content_trimmed(repliedToot)
-        if repliedToot['spoiler_text']:
-            cprint(_indent + _indent + _format_spoiler_trimmed(repliedToot), fg('red'), end=": ")
-        print( ''.join(( stylize(repliedTootContent, fg('blue')),
-                         (_style_media_summary(repliedToot, fg('magenta'), prefix=" ")
-                             if repliedToot['media_attachments'] else '') )))
+        print(_indent + _style_toot_summary_line(repliedToot, fg('blue')) )
 
     # last but not least, spoilertext (CW)
     if toot['spoiler_text']:
@@ -401,23 +401,20 @@ def printNotification(note):
     if note['type'] == 'mention':
         print(_indent + _style_name_line(note['account'], fg('magenta'), suffix=' mentioned you ======'))
         # TODO: this prints whole toot but we really only need the content
-        printTimelineToot(note['status'])
+        print(_indent + _style_id_line(note['status'], fg('magenta')))
+        print(_indent + _style_toot_summary_line(note['status'], fg('magenta')))
 
     # Favorites
     elif note['type'] == 'favourite':
         print(_indent + _style_name_line(note['account'], fg('green'), suffix=' favorited your status:'))
         print(_indent + _style_id_line(note['status'], fg('green')))
-        if note['status']['spoiler_text']:
-            cprint(_indent + _format_spoiler(note['status']), fg('red'))
-        cprint(get_content(note['status']), fg('green'))
+        print(_indent + _style_toot_summary_line(note['status'], fg('green')) )
 
     # Boosts
     elif note['type'] == 'reblog':
         print(_indent + _style_name_line(note['account'], fg('yellow'), suffix=' boosted your toot:'))
         print(_indent + _style_id_line(note['status'], fg('yellow')))
-        if note['status']['spoiler_text']:
-            cprint(_indent + _format_spoiler(note['status']), fg('red'))
-        cprint(get_content(note['status']), fg('yellow'))
+        print(_indent + _style_toot_summary_line(note['status'], fg('yellow')) )
 
     # Follows
     elif note['type'] == 'follow':

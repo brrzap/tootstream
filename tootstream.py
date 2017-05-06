@@ -572,6 +572,10 @@ def search(query):
             toots = stuff['statuses']
             tags = stuff['hashtags']
 
+        if len(users)==0 and len(toots)==0 and len(tags)==0:
+            print_ui_msg("  Search: '{}' returned no results\n".format(query))
+            return
+
         summary = ', '.join( ' '.join(( str(len(x[0])), x[1]))             # format as "N label1, ..."
                                 for x in zip( [users, toots, tags],        #   for these lists
                                               ["users", "toots", "tags"])  #   with these labels
