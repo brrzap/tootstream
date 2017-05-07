@@ -130,6 +130,12 @@ def seek_and_destroy(name):
             child.terminate()
             lstnrs.remove(lstn)
             return True
+        elif lstn and not child:
+            # found listener but not child process.
+            # process died?  remove listener.
+            lstnrs.remove(lstn)
+            print_error("debug: removed listener with no matching process.")
+            return True
     elif '@' in name:
         name = "#{}".format(name)
         # should find exact match
@@ -139,6 +145,12 @@ def seek_and_destroy(name):
         if child and lstn:
             child.terminate()
             lstnrs.remove(lstn)
+            return True
+        elif lstn and not child:
+            # found listener but not child process.
+            # process died?  remove listener.
+            lstnrs.remove(lstn)
+            print_error("debug: removed listener with no matching process.")
             return True
     elif name.startswith('#'):
         # missing a profilename, so fuzzy match
@@ -152,6 +164,12 @@ def seek_and_destroy(name):
         elif child and lstn:
             # we found nonmatching stuff, abort
             return False
+        elif lstn and not child:
+            # found listener but not child process.
+            # process died?  remove listener.
+            lstnrs.remove(lstn)
+            print_error("debug: removed listener with no matching process.")
+            return True
     else:
         # dunno if this is tag or profile.  maybe it's profile?
         tname = "@{}".format(name)
