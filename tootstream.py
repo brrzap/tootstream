@@ -53,7 +53,7 @@ def configure_logging():
 
     # setup queue for logging from other processes
     q = Queue()
-    lt = threading.Thread(target=logger_thread, args=(q,))
+    lt = threading.Thread(target=logger_thread, args=(q,), daemon=True)
     lt.start()
 
     # save logger and queue on context
@@ -445,6 +445,41 @@ def local():
         printTimelineToot(toot)
 # aliases
 _tootstream.add_command(local, 'l')
+
+
+@_tootstream.command( 'stream', options_metavar='',
+                     cls=TootStreamCmd,
+                     short_help='stream a timeline' )
+@click.argument( 'timeline', metavar='<timeline>',
+                 type=click.Choice(['h', 'home', 'f', 'fed', 'p', 'pub', 'public']),
+                 #type=click.Choice(['h', 'home', 'l', 'local', 'f', 'fed', 'p', 'pub', 'public']),
+                 default='home' )
+def stream(timeline):
+    """Displays a timeline as a continuous stream.
+    Currently only 'home' or 'public' ('fed') timelines
+    are supported, but support for 'local' timeline is
+    expected.
+
+    Press Ctrl-C to return to the prompt."""
+    print_ui_msg("  Press Ctrl-C to return to the prompt.")
+    mastodon = get_active_mastodon()
+
+    listener = TootConsoleListener()
+    try:
+        if timeline.startswith('h'):
+            mastodon.user_stream(listener)
+        elif timeline.startswith('f') or timeline.startswith('p'):
+            mastodon.public_stream(listener)
+        #elif timeline.startswith('l'):
+        #    mastodon.local_stream(listener)
+        else:
+            logger.debug("cmd stream got unexpected input {}".format(timeline))
+    except Exception as e:
+        logger.debug("{}: {}".format(type(e).__name__, e))
+    except KeyboardInterrupt:
+        pass
+    return
+# aliases
 
 
 @_tootstream.command( 'faves', options_metavar='',

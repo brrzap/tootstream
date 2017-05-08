@@ -461,6 +461,8 @@ def repl(
             e.show()
         except SystemExit:
             pass
+        except KeyboardInterrupt:
+            continue
         except ExitReplException:
             break
         except Exception as e:

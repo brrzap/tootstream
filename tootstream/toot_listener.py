@@ -1,5 +1,5 @@
 from mastodon import StreamListener
-from .toot_print import print_error, print_ui_msg
+from .toot_print import print_error, print_ui_msg, printTimelineToot
 from .toot_utils import add_listener, get_listeners, get_logger
 import multiprocessing
 import logging
@@ -8,6 +8,7 @@ logger = logging.getLogger('ts.listen')
 
 
 __all__ = [ 'TootDesktopNotifications',
+            'TootConsoleListener',
             'seek_and_destroy',
             'seek_and_kick',
             'kick_new_process' ]
@@ -308,6 +309,13 @@ def seek_and_kick(name):
 
     return kick_new_process( targetstream, listener, tag=tag )
 # end
+
+
+class TootConsoleListener(StreamListener):
+    """Simple subclass of the mastodon.StreamListener class to print toots
+    on the console as they come in."""
+    def on_update(self, status):
+        printTimelineToot(status)
 
 
 class TootDesktopNotifications(StreamListener):
