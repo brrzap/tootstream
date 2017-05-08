@@ -156,8 +156,11 @@ def _format_visibility(toot):
 
 def _format_acted(toot):
     # has this user favorited or boosted this toot already?
-    return " "+' '.join(( (GLYPHS['favourited'] if toot['favourited'] else ""),
-                          (GLYPHS['reblogged'] if toot['reblogged'] else "") ))
+    # seeing some toot dicts without these keys, so use get()
+    out = []
+    if toot.get('favourited'): out.append( GLYPHS['favourited'] )
+    if toot.get('reblogged'): out.append( GLYPHS['reblogged'] )
+    return " "+' '.join(out)
 
 def _format_nsfw(toot, prefix='[', suffix=']'):
     if not toot['sensitive']: return ''
