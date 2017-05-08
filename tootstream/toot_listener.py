@@ -1,13 +1,54 @@
 from mastodon import StreamListener
 from .toot_print import print_error, print_ui_msg
-from .toot_utils import add_listener, get_listeners
+from .toot_utils import add_listener, get_listeners, get_logger
 import multiprocessing
+import logging
+
+logger = logging.getLogger('ts.listen')
 
 
 __all__ = [ 'TootDesktopNotifications',
             'seek_and_destroy',
             'seek_and_kick',
             'kick_new_process' ]
+
+
+def worker_process(q, targetstream, listener, tag=None):
+    """Wrapper for Mastodon.py streaming API.  This allows us
+    to configure logging properly in the separate process."""
+    if not q or not targetstream or not listener: return
+    from logging.handlers import QueueHandler
+    qh = QueueHandler(q)
+    root = multiprocessing.get_logger()
+    root.name = 'listenworker'
+    name = multiprocessing.current_process().name
+    worklogger = root.getChild('{}'.format(name))
+    worklogger.setLevel(logging.DEBUG)
+    worklogger.addHandler(qh)
+    worklogger.debug('initializing worker process for {}'.format(name))
+
+    if not targetstream:
+        worklogger.debug('no stream')
+        return
+    elif not listener:
+        worklogger.debug('no listener')
+        return
+
+    lname = listener._dbgname
+    # wrap stream call
+    try:
+        if tag:
+            worklogger.debug('starting tag stream {}'.format(lname))
+            targetstream(tag, listener)
+        else:
+            worklogger.debug('starting notification stream {}'.format(lname))
+            targetstream(listener)
+    except Exception as e:
+        worklogger.error('stream exception {} on {}'.format(type(e).__name__, name))
+        worklogger.debug('{}: {}'.format(type(e).__name__, e))
+
+    # TODO: if we're dead we should let someone know so they can clean up the listener
+
 
 
 def kick_new_process(targetstream, listener, tag=None):
@@ -19,8 +60,11 @@ def kick_new_process(targetstream, listener, tag=None):
     listener: a TootDesktopNotifications object
     """
 
-    if not targetstream or not listener:
-        print_error("Empty object. Unable to comply.")
+    if not targetstream:
+        logger.debug("no stream given, aborting")
+        return False
+    if not listener:
+        logger.debug("no listener given, aborting")
         return False
 
     ls = get_listeners()
@@ -28,38 +72,40 @@ def kick_new_process(targetstream, listener, tag=None):
         # Ring of Protection vs Already Listening
         for l in ls:
             if listener == l:
-                print_error("Listener already listening. Unable to comply.")
+                logger.error("Listener already listening. Unable to comply.")
                 return False
             elif listener._dbgname == l._dbgname:
-                print_error("Another listener already listening. Unable to comply.")
+                logger.error("Another listener already listening. Unable to comply.")
                 return False
 
+    from click import get_current_context
+    q = get_current_context().meta.get('Q')
+    lname = listener._dbgname
+    p = None
     try:
-        p = None
         if tag:
-            p = multiprocessing.Process( target=targetstream,
+            logger.debug("kicking tag process for {}".format(lname))
+            p = multiprocessing.Process( target=worker_process,
                                          daemon=True,
-                                         name="listener {}".format(listener._dbgname),
-                                         args=(tag,listener,) )
+                                         name="L{}".format(lname),
+                                         args=(q, targetstream, listener, tag,) )
         else:
-            p = multiprocessing.Process( target=targetstream,
+            logger.debug("kicking notification process for {}".format(lname))
+            p = multiprocessing.Process( target=worker_process,
                                          daemon=True,
-                                         name="listener {}".format(listener._dbgname),
-                                         args=(listener,) )
+                                         name="L{}".format(lname),
+                                         args=(q, targetstream, listener,) )
         if p:
             p.start()
             add_listener(listener)
 
-        if listener._tag:
-            print_ui_msg("Notifications engaged for {} {}".format(listener._tag, listener._name))
-        else:
-            print_ui_msg("Notifications engaged for {}".format(listener._name))
 
-        return True
     except Exception as e:
-        print_error("{}: error configuring listener: {}".format(type(e).__name__, e))
+        logger.error("{}: error configuring listener: {}".format(type(e).__name__, e))
         return False
-    return False
+
+    logger.info("Notifications engaged for {}".format(lname))
+    return True
 # end
 
 
@@ -123,34 +169,38 @@ def seek_and_destroy(name):
     lstn = None
     if (name.startswith('#') and '@' in name) or name.startswith('@'):
         # should find exact match
-        pname = "listener {}".format(name)
+        pname = "L{}".format(name)
         child = next((x for x in children if x.name == pname), None)
         lstn = next((x for x in lstnrs if x._dbgname == name), None)
         if child and lstn:
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
             child.terminate()
+            child.join()
             lstnrs.remove(lstn)
             return True
         elif lstn and not child:
             # found listener but not child process.
             # process died?  remove listener.
             lstnrs.remove(lstn)
-            print_error("debug: removed listener with no matching process.")
+            logger.debug("removed listener {} with no matching process.".format(lstn._dbgname))
             return True
     elif '@' in name:
         name = "#{}".format(name)
         # should find exact match
-        pname = "listener {}".format(name)
+        pname = "L{}".format(name)
         child = next((x for x in children if x.name == pname), None)
         lstn = next((x for x in lstnrs if x._dbgname == name), None)
         if child and lstn:
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
             child.terminate()
+            child.join()
             lstnrs.remove(lstn)
             return True
         elif lstn and not child:
             # found listener but not child process.
             # process died?  remove listener.
             lstnrs.remove(lstn)
-            print_error("debug: removed listener with no matching process.")
+            logger.debug("removed listener {} with no matching process.".format(lstn._dbgname))
             return True
     elif name.startswith('#'):
         # missing a profilename, so fuzzy match
@@ -158,42 +208,54 @@ def seek_and_destroy(name):
         lstn = next((x for x in lstnrs if name in x._dbgname), None)
         if child and lstn and lstn._dbgname in child.name:
             # names match, ok
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
             child.terminate()
+            child.join()
             lstnrs.remove(lstn)
             return True
         elif child and lstn:
             # we found nonmatching stuff, abort
+            logger.debug("found child {} and listener {}, aborting".format(child.name, lstn._dbgname))
             return False
         elif lstn and not child:
             # found listener but not child process.
             # process died?  remove listener.
             lstnrs.remove(lstn)
-            print_error("debug: removed listener with no matching process.")
+            logger.debug("removed listener {} with no matching process.".format(lstn._dbgname))
             return True
     else:
         # dunno if this is tag or profile.  maybe it's profile?
         tname = "@{}".format(name)
+        logger.debug("ambiguous name {}, trying as profile: {}".format(name, tname))
         child = next((x for x in children if tname in x.name), None)
         lstn = next((x for x in lstnrs if tname in x._dbgname), None)
         if child and lstn and lstn._dbgname in child.name:
             # names match, ok
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
             child.terminate()
+            child.join()
             lstnrs.remove(lstn)
             return True
         elif child and lstn:
             # we found nonmatching stuff, abort
+            logger.debug("found child {} and listener {}, aborting".format(child.name, lstn._dbgname))
             return False
         else:
             # try again as a tagname
             tname = "#{}".format(name)
+            logger.debug("failed profile search, trying as tag: {}".format(tname))
             child = next((x for x in children if tname in x.name), None)
             lstn = next((x for x in lstnrs if tname in x._dbgname), None)
             if child and lstn and lstn._dbgname in child.name:
                 # names match, ok
+                logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
                 child.terminate()
+                child.join()
                 lstnrs.remove(lstn)
                 return True
             # give up
+            elif child and lstn:
+                logger.debug("found child {} and listener {}, aborting".format(child.name, lstn._dbgname))
             return False
 
     return False
@@ -206,18 +268,20 @@ def seek_and_kick(name):
         return False
 
     (tag, profile) = _split_tag_profile(name)
+    logger.debug('seek_and_kick trying name:{} tag:{} profile:{}'.format(name, tag, profile))
 
+    targetstream = None
+    listener = None
     if not tag and not profile:
         return False
     elif profile == get_active_profile():
         from .toot_utils import get_active_mastodon
-        targetstream = None
         if tag is None:
             targetstream = get_active_mastodon().user_stream
+            listener = TootDesktopNotifications(profile)
         else:
             targetstream = get_active_mastodon().hashtag_stream
-
-        return kick_new_process( targetstream, TootDesktopNotifications(profile, tag=tag), tag=tag )
+            listener = TootDesktopNotifications(profile, tag)
     else:
         from mastodon import Mastodon
         from .toot_utils import get_profile_values
@@ -228,14 +292,14 @@ def seek_and_kick(name):
         except:
             return False
 
-        targetstream = None
         if tag is None:
             targetstream = newmasto.user_stream
+            listener = TootDesktopNotifications(profile)
         else:
             targetstream = newmasto.hashtag_stream
+            listener = TootDesktopNotifications(profile, tag)
 
-        return kick_new_process( targetstream, TootDesktopNotifications(profile, tag=tag), tag=tag )
-    return False
+    return kick_new_process( targetstream, listener, tag=tag )
 # end
 
 
@@ -268,27 +332,29 @@ class TootDesktopNotifications(StreamListener):
             self._tag = "#{}".format(tag)
 
         self._dbgname = ("{}{}".format(self._tag, self._name) if self._tag else self._name)
+        self.logger = get_logger("listener{}".format(self._dbgname))
+        self.logger.debug("initializing logger")
 
         # find a notification subsystem to use.
         if self._check_GINotify():
-            print_ui_msg("listener {} using gi.repository.Notify".format(self._dbgname))
+            self.logger.debug("using gi.repository.Notify")
             from gi.repository import Notify
             Notify.init(self._app)
             self._note = Notify.Notification.new('')
             self._note.set_category('im.received')
             self._send = self._via_Notify
         elif self._check_Notify2():
-            print_ui_msg("listener {} using dbus+notify2".format(self._dbgname))
+            self.logger.debug("using dbus+notify2")
             import notify2
             notify2.init(self._app)
             self._note = notify2.Notification('')
             self._note.set_category('im.received')
             self._send = self._via_Notify
         elif self._check_notifysend():
-            print_ui_msg("listener {} using external notify-send".format(self._dbgname))
+            self.logger.debug("using external notify-send")
             self._send = self._via_notifysend
         else:
-            print_error("listener {} can't find a backend".format(self._dbgname))
+            self.logger.error("can't find a backend")
             self._send = self._via_stdout
     # end
 
@@ -347,10 +413,14 @@ class TootDesktopNotifications(StreamListener):
 
     def _via_stdout(self, summary, body):
         # helper: dump to stdout
-        print("Listener {}: summary: {} message: {}".format( self._dbgname, summary, body ))
+        msg = "Listener {}: summary: {} message: {}".format( self._dbgname, summary, body )
+        self.logger.info(msg)
+        print(msg)
 
     def on_update(self, toot):
         # probably don't want notifications on every post
+        if not toot: return
+        self.logger.debug("on_update: toot id:{} from acct:{}".format(toot['id'], toot['account']['acct']))
         if self._tag:
             summary = "{}".format(self._tag)
             body = "new from {} (id:{})".format(toot['account']['acct'], str(toot['id']))
@@ -367,6 +437,7 @@ class TootDesktopNotifications(StreamListener):
         """Our main interest."""
         # deps on Arch: python-gobject, libnotify
         # deps on Debian: python-gobject, libnotify-bin (TODO: verify)
+        self.logger.debug("on_notification: note id:{} type:{} from acct:{}".format(incoming['id'], incoming['type'], incoming['account']['acct']))
         summary = "{}".format(self._name)
         body = "{} (id:{})".format(incoming['account']['acct'], str(incoming['account']['id']))
 
@@ -384,6 +455,7 @@ class TootDesktopNotifications(StreamListener):
             pass
         else:
             body += " ..note id:{} unknown type:{}".format(str(incoming['id']), str(incoming['type']))
+            self.logger.debug("unknown notification type:{} {}".format(incoming['type'], repr(incoming)))
             pass
 
         self._send(summary, body)

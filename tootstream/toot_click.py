@@ -1,4 +1,7 @@
 import click
+import logging
+
+logger = logging.getLogger('ts.click')
 
 
 __all__ = [ 'TootStreamCmd', 'TootStreamGroup',
@@ -147,10 +150,10 @@ def get_bottom_toolbar_tokens(cli):
     lsnrs = get_listeners()
     if lsnrs and len(lsnrs)>0:
         (width, _) = click.get_terminal_size()
-        lstnheader = '[listeners:'
+        lstnheader = 'listeners: ['
         lsnrstring = "{}".format(' '.join( (l._dbgname for l in lsnrs) ))
         lsnrslen = wcswidth(lsnrstring)       # min length of full lsnr list
-        if lsnrslen > (width*3//4):
+        if lsnrslen > (width//2):
             # lsnr list is too long, summarize
             lsnrstring = "{} listeners".format(str(len(lsnrs)))
 
@@ -159,12 +162,10 @@ def get_bottom_toolbar_tokens(cli):
                         - (5 + wcswidth(lstnheader))           # rightside header+footer
                         - (1 + wcswidth(lsnrstring)) )         # rightside content
 
-        out += [ (Token.TbSep, ' '*spacerlen),
-                 (Token.LstnHeader, lstnheader),
-                 (Token.TbSep, ' '),
-                 (Token.Listener, lsnrstring) ]
-
-        out.append( (Token.LstnFooter, ']') )
+        out += [ ( Token.TbSep,       ' '*spacerlen ),
+                 ( Token.LstnHeader,  lstnheader    ),
+                 ( Token.Listener,    lsnrstring    ),
+                 ( Token.LstnFooter,  ']'           ) ]
 
     return out
 
@@ -451,6 +452,7 @@ def repl(
                 except KeyboardInterrupt:
                     continue
 
+        logger.debug("command: {}".format(repr(args)))
         try:
             with group.make_context(None, args, parent=group_ctx) as ctx:
                 group.invoke(ctx)

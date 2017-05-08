@@ -4,6 +4,9 @@ from colored import fg, attr, stylize
 from .toot_click import TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
 from .toot_utils import *
 from .toot_print import *
+import logging
+
+logger = logging.getLogger('ts.reltns')
 
 
 #####################################

@@ -6,6 +6,9 @@ from .toot_utils import *
 from .toot_print import *
 from .toot_listener import *
 from .toot_utils import RESERVED
+import logging
+
+logger = logging.getLogger('ts.set')
 
 
 #####################################

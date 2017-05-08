@@ -3,6 +3,7 @@
 import os.path
 import click
 import sys
+import logging
 from tootstream import *
 from tootstream.toot_click import *
 from tootstream.toot_utils import *
@@ -11,6 +12,57 @@ from tootstream.toot_listener import *
 from mastodon import Mastodon
 from colored import fg, attr, stylize
 from prompt_toolkit.shortcuts import prompt
+import multiprocessing
+from multiprocessing import Process, Queue
+import threading
+
+
+#####################################
+######## LOGGING SETUP     # ########
+#####################################
+#logger = logging.getLogger('tootstream')
+logger = multiprocessing.get_logger().root
+logger.name = 'tootstream'
+logger.setLevel(logging.DEBUG)
+logger.debug('initializing logger')
+
+def logger_thread(q):
+    while True:
+        record = q.get()
+        if record is None:
+            break
+        logger.handle(record)
+
+def configure_logging():
+    from logging.handlers import RotatingFileHandler
+    # logfile gets everything
+    ts_logfileformat = logging.Formatter('%(asctime)s|%(name)s|%(processName)s|%(levelname)s| %(message)s', '%Y-%m-%d %H:%M:%S')
+    ts_logfile = RotatingFileHandler('./dbg.tootstream.log', maxBytes=2000000, backupCount=5)
+    ts_logfile.setFormatter(ts_logfileformat)
+    ts_logfile.setLevel(logging.DEBUG)
+    logger.addHandler(ts_logfile)
+    logger.debug('initializing logfile')
+
+    # console output?
+    #ts_consoleformat = logging.Formatter('%(levelname)s: %(message)s')
+    #ts_console = logging.StreamHandler() # should default to stderr?
+    #ts_console.setFormatter(ts_consoleformat)
+    #ts_console.setLevel(logging.INFO)
+    #logger.addHandler(ts_console)
+    #logger.debug('initializing console')
+
+    # setup queue for logging from other processes
+    q = Queue()
+    lt = threading.Thread(target=logger_thread, args=(q,))
+    lt.start()
+
+    # save logger and queue on context
+    click.get_current_context().meta['applogger'] = logger
+    click.get_current_context().meta['Q'] = q
+
+    # return queue and logthread
+    return (q, lt)
+
 
 #####################################
 ######## UTILITY FUNCTIONS # ########
@@ -94,14 +146,18 @@ def _ts_option_filecheck_list_cb(ctx, param, value):
     #print("DEBUG: ", str(param), str(param.name), str(value), str(ctx))
     if value is None: return None
     if len(value) > 4:
-        print_error("error: only 4 attachments allowed")
+        msg = "only 4 attachments allowed"
+        print_error(msg)
+        logger.error("{} (received: {})".format(msg, len(value)))
         ctx.abort()
     v = []
     error = False
     for val in value:
         f = _ts_filecheck(val)
         if f is None:
-            print_error("error: %s not readable" % val)
+            msg = "file {} is not readable".format(val)
+            print_error(msg)
+            logger.error(msg)
             ctx.abort()
         v.append(f)
     return v
@@ -149,10 +205,12 @@ def toot(text, media, nsfw, spoiler, vis, append):
     #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
 
     if not text and not append:
-        print_error("error: cowardly refusing to post an empty post")
+        msg = "cowardly refusing to post an empty post"
+        print_error(msg)
+        logger.error(msg)
         return
     if not text and append:
-        print_error("error: posting text from file is currently unimplemented")
+        print_error("posting text from file is currently unimplemented")
         return
 
     # TODO: verify 'acct' setting is right -- Mastodon.py uses this as account-default setting?
@@ -173,8 +231,11 @@ def toot(text, media, nsfw, spoiler, vis, append):
         for m in media:
             try:
                 mpost.append( mastodon.media_post(m) )
-            except:
-                print_error("error: API error uploading %s" % m)
+            except Exception as e:
+                msg = "API error uploading file {}".format(m)
+                print_error(msg)
+                logger.error(msg)
+                logger.debug("{}: {}".format(type(e).__name__, e))
                 return
         assert len(media) == len(mpost)
 
@@ -233,10 +294,12 @@ def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
     #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
 
     if not text and not append:
-        print_error("error: cowardly refusing to post an empty post")
+        msg = "cowardly refusing to post an empty post"
+        print_error(msg)
+        logger.error(msg)
         return
     if not text and append:
-        print_error("error: posting text from file is currently unimplemented")
+        print_error("posting text from file is currently unimplemented")
         return
     mastodon = get_active_mastodon()
     parent_toot = mastodon.status(tootid)
@@ -268,8 +331,11 @@ def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
         for m in media:
             try:
                 mpost.append( mastodon.media_post(m) )
-            except:
-                print_error("error: API error uploading %s" % m)
+            except Exception as e:
+                msg = "API error uploading file {}".format(m)
+                print_error(msg)
+                logger.error(msg)
+                logger.debug("{}: {}".format(type(e).__name__, e))
                 return
         assert len(media) == len(mpost)
 
@@ -723,10 +789,16 @@ _tootstream.add_command(tootstream.toot_cmds_relations._mute)
 @click.option( '--notifications', '-n', metavar='', default=False, is_flag=True,
                help='Enable desktop notifications (experimental)' )
 def main(instance, email, password, config, profile, notifications):
+    (q, lt) = configure_logging()
+    logger.info('================================')
+    logger.info('Starting tootstream-experimental')
+
     configpath = os.path.expanduser(config)
     if os.path.isfile(configpath) and not os.access(configpath, os.W_OK):
         # warn the user before they're asked for input
-        cprint("Config file does not appear to be writable: "+configpath, fg('red'))
+        msg = "Config file does not appear to be writable: {}".format(configpath)
+        print_error(msg)
+        logger.error(msg)
 
     set_configfile(configpath)
     cfg = parse_config()
@@ -735,7 +807,9 @@ def main(instance, email, password, config, profile, notifications):
 
     instance, client_id, client_secret, token = parse_or_input_profile(profile, instance, email, password)
     if not token:
-        print_error("Could not log you in.  Please try again later.")
+        msg = "Could not log you in.  Please try again later."
+        print_error(msg)
+        logger.error(msg)
         sys.exit(1)
 
 
@@ -746,6 +820,7 @@ def main(instance, email, password, config, profile, notifications):
         api_base_url="https://" + instance)
 
     if notifications:
+        logger.info("Initializing notifications for {}".format(profile))
         set_notifications()
         kick_new_process( mastodon.user_stream, TootDesktopNotifications(profile) )
 
@@ -774,6 +849,11 @@ def main(instance, email, password, config, profile, notifications):
     ctx = _tootstream.make_context('tootstreamShell', [], parent=click.get_current_context())
     ctx.invoke(tsrepl)
 
+    # TODO: teardown processes?
+    # cleanup logger thread
+    q.put(None)
+    lt.join()
+    logger.info("Goodbye!")
     print("Goodbye!")
 
 

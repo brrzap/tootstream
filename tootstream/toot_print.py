@@ -4,11 +4,12 @@ import re
 import arrow
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_parser import *
 from textwrap import indent as tw_indent
 from wcwidth import wcswidth
-#from .toot_utils import get_active_profile, get_known_profile, get_active_mastodon
+from .toot_parser import *
+import logging
 
+logger = logging.getLogger('ts.print')
 #####################################
 ######## CONSTANTS           ########
 #####################################

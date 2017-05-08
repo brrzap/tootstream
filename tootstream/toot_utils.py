@@ -4,7 +4,9 @@ import configparser
 import getpass
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_print import *
+import logging
+
+logger = logging.getLogger('ts.utils')
 
 
 RESERVED = ( "theme", "global" )
@@ -16,6 +18,15 @@ KEYMASTODON = __name__ + 'mastodon'
 KEYLISTENERS = __name__ + 'listeners'
 KEYNOTIFICATIONS = __name__ + 'notifications'
 
+def get_logger(name):
+    #import multiprocessing
+    #logger = multiprocessing.get_logger().getChild(name)
+    parent = click.get_current_context().meta['applogger']
+    if parent:
+        return parent.getChild(name)
+    else:
+        import multiprocessing
+        return multiprocessing.get_logger().getChild(name)
 
 def set_configfile(filename):
     click.get_current_context().meta[KEYCFGFILE] = filename
@@ -129,7 +140,7 @@ def parse_config():
         os.makedirs(dirpath)
 
     if not os.path.isfile(filename):
-        cprint("...No configuration found, generating...", fg('cyan'))
+        logger.info("No configuration found, generating...")
         cfg = configparser.ConfigParser()
         set_config(cfg)
         return cfg
@@ -138,7 +149,7 @@ def parse_config():
     try:
         cfg.read(filename)
     except configparser.Error:
-        cprint("This does not look like a valid configuration:"+filename, fg('red'))
+        logger.critical("This does not look like a valid configuration: {}".format(filename))
         sys.exit("Goodbye!")
 
     set_config(cfg)
@@ -157,7 +168,7 @@ def save_config():
         with open(filename, 'w') as configfile:
             cfg.write(configfile)
     except os.error:
-        cprint("Unable to write configuration to "+filename, fg('red'))
+        logger.error("Unable to write configuration to {}".format(filename))
 # save_config
 
 
@@ -192,6 +203,7 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
     before giving up.  Returns profile values on success: instance, client_id, client_secret, token
     On failure, returns None, None, None, None.
     """
+    from .toot_print import cprint
     cfg = get_config()
     # shortcut for preexisting profiles
     if cfg.has_section(profile):
@@ -225,7 +237,7 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
         try:
             client_id, client_secret = register_app(instance)
         except Exception as e:
-            print_error("{}: please try again later".format(type(e).__name__))
+            logger.error("{}: please try again later".format(type(e).__name__))
             return None, None, None, None
 
     token = None
@@ -237,11 +249,11 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
             try:
                 token = login(instance, client_id, client_secret, email, password)
             except Exception as e:
-                print_error("{}: did you type it right?".format(type(e).__name__))
+                logger.error("{}: did you type it right?".format(type(e).__name__))
             if token: break
 
         if not token:
-            print_error("giving up after 3 failed login attempts")
+            logger.error("giving up after 3 failed login attempts")
             return None, None, None, None
 
     return instance, client_id, client_secret, token
@@ -259,6 +271,6 @@ __all__ = [ 'set_configfile', 'get_configfile',
             'get_notifications', 'set_notifications',
             'parse_or_input_profile',
             'parse_config',
-            'save_config' ]
+            'save_config',
+            'get_logger' ]
 
-#from .toot_print import *
