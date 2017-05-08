@@ -178,11 +178,8 @@ def _ts_option_filecheck_list_cb(ctx, param, value):
                required=False, default=None,
                help='a string to be shown before hidden content' )
 @click.option( '--vis', '-v', 'vis', metavar='<>',
-               # TODO: can we get current account setting from API? make that default
-               type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private']),
+               type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
                default='acct',
-               # TODO: direct not supported: https://github.com/halcy/Mastodon.py/issues/41
-               #type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
                help='post visibility (public, unlisted, private, direct)' )
 @click.option( '--append', '-a', metavar='<file>',
                required=False, default=None,
@@ -198,12 +195,10 @@ def toot(text, media, nsfw, spoiler, vis, append):
       -m, --add-media <file>         attach a media file to the post
                                        (repeat to attach up to 4 files)
       -n, --nsfw                     mark attachments as sensitive
-      -v, --vis <p|u|pr>             set post visibility to public/unlisted/private
+      -v, --vis <p|u|pr|d>           set post visibility to public/unlisted/private/direct
       -s, --cw, --spoiler <string>   set spoiler text
       -a, --append <file>            read post text from a file (not yet implemented)
     """
-    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
-
     if not text and not append:
         msg = "cowardly refusing to post an empty post"
         print_error(msg)
@@ -213,13 +208,12 @@ def toot(text, media, nsfw, spoiler, vis, append):
         print_error("posting text from file is currently unimplemented")
         return
 
-    # TODO: verify 'acct' setting is right -- Mastodon.py uses this as account-default setting?
     # convert user-friendly shortcuts
     if vis == 'acct': vis = ''
     elif vis == 'p':  vis = 'public'
     elif vis == 'u':  vis = 'unlisted'
     elif vis == 'pr': vis = 'private'
-    #elif vis == 'd':  vis = 'direct'
+    elif vis == 'd':  vis = 'direct'
     post_text = ' '.join(text)
     mpost = []
     mastodon = get_active_mastodon()
@@ -265,11 +259,8 @@ _tootstream.add_command(toot, 't')
 @click.option( '--nospoiler', '--nocw', 'nospoiler', is_flag=True,
                help='don\'t use original toot\'s spoiler text' )
 @click.option( '--vis', '-v', 'vis', metavar='<>',
-               # TODO: can we get current account setting from API? make that default
-               type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'orig']),
+               type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct', 'orig']),
                default='orig', # follow the parent's setting
-               # TODO: direct not supported: https://github.com/halcy/Mastodon.py/issues/41
-               #type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct', 'asorig']),
                help='post visibility (public, unlisted, private, direct)' )
 @click.option( '--append', '-a', metavar='<file>',
                required=False, default=None,
@@ -286,13 +277,11 @@ def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
       -m, --add-media <file>         attach a media file to the post
                                        (repeat to attach up to 4 files)
       -n, --nsfw                     mark attachments as sensitive
-      -v, --vis <p|u|pr>             change post visibility to public/unlisted/private
+      -v, --vis <p|u|pr|d>           change post visibility to public/unlisted/private/direct
       -s, --cw, --spoiler <string>   change spoiler text
           --nocw, --nospoiler        don't use original toot's spoiler text
       -a, --append <file>            read post text from a file (not yet implemented)
     """
-    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
-
     if not text and not append:
         msg = "cowardly refusing to post an empty post"
         print_error(msg)
@@ -304,15 +293,13 @@ def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
     mastodon = get_active_mastodon()
     parent_toot = mastodon.status(tootid)
 
-    #print("DEBUG: "+' '.join(( "P_vis:"+str(parent_toot['visibility']), "P_cw:'"+str(parent_toot['spoiler_text'])+"'" )))
-
     # default vis to parent's
     if vis == 'orig': vis = parent_toot['visibility']
     # convert user-friendly shortcuts
     elif vis == 'p':  vis = 'public'
     elif vis == 'u':  vis = 'unlisted'
     elif vis == 'pr': vis = 'private'
-    #elif vis == 'd':  vis = 'direct'
+    elif vis == 'd':  vis = 'direct'
 
     # default spoiler to parent's unless nospoiler is set
     if nospoiler:
@@ -321,8 +308,6 @@ def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
         spoiler = parent_toot['spoiler_text']
     reply_text = ' '.join(text)
     mpost = []
-
-    #print("DEBUG: "+' '.join(( "m:"+str(media), "n:"+str(nsfw), "cw:'"+str(spoiler)+"'", "v:"+str(vis), "ap:"+str(append), "t:"+str(text) )))
 
     # rule: if no media don't set sensitive.
     if not media:
