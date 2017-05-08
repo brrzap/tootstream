@@ -451,14 +451,15 @@ _tootstream.add_command(local, 'l')
                      cls=TootStreamCmd,
                      short_help='stream a timeline' )
 @click.argument( 'timeline', metavar='<timeline>',
-                 type=click.Choice(['h', 'home', 'f', 'fed', 'p', 'pub', 'public']),
+                 #type=click.Choice(['h', 'home', 'f', 'fed', 'p', 'pub', 'public']),
                  #type=click.Choice(['h', 'home', 'l', 'local', 'f', 'fed', 'p', 'pub', 'public']),
                  default='home' )
 def stream(timeline):
     """Displays a timeline as a continuous stream.
-    Currently only 'home' or 'public' ('fed') timelines
-    are supported, but support for 'local' timeline is
-    expected.
+
+    Currently only 'home' or 'public' ('fed') timelines are
+    supported, but support for 'local' timeline is expected.
+    Hashtag timelines connect but do not seem functional.
 
     Press Ctrl-C to return to the prompt."""
     print_ui_msg("  Press Ctrl-C to return to the prompt.")
@@ -472,6 +473,13 @@ def stream(timeline):
             mastodon.public_stream(listener)
         #elif timeline.startswith('l'):
         #    mastodon.local_stream(listener)
+        elif timeline.startswith('#'):
+            tag = timeline[1:] # assuming API wants a tag without the # ...
+            #tag = timeline     # ... with the # doesn't seem to work either
+            logger.debug("starting stream on tag {}".format(tag))
+            print_ui_msg("  Note: hashtag streams don't seem to work at present.")
+            print_ui_msg("        feel free to try them out and check debug logs.")
+            mastodon.hashtag_stream(tag, listener)
         else:
             logger.debug("cmd stream got unexpected input {}".format(timeline))
     except Exception as e:

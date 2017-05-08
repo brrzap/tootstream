@@ -314,8 +314,22 @@ def seek_and_kick(name):
 class TootConsoleListener(StreamListener):
     """Simple subclass of the mastodon.StreamListener class to print toots
     on the console as they come in."""
-    def on_update(self, status):
-        printTimelineToot(status)
+    def __init__(self, *args, **kwargs):
+        super(TootConsoleListener, self).__init__(*args, **kwargs)
+        self.logger = get_logger("consoleListener")
+
+    def on_update(self, toot):
+        self.logger.debug("on_update: toot id:{} from acct:{}".format(toot['id'], toot['account']['acct']))
+        printTimelineToot(toot)
+        return
+
+    def on_delete(self, statusid):
+        self.logger.debug("on_delete: toot id:{} deleted".format(statusid))
+        return
+
+    def on_notification(self, note):
+        self.logger.debug("on_notification: note id:{} type:{} from acct:{}".format(incoming['id'], incoming['type'], incoming['account']['acct']))
+        return
 
 
 class TootDesktopNotifications(StreamListener):
@@ -444,7 +458,7 @@ class TootDesktopNotifications(StreamListener):
             # if self._tag is empty we're on a user stream, ignore
             pass
 
-    def on_delete(self, status):
+    def on_delete(self, tootid):
         # probably don't want notifications on every deletion
         pass
 
