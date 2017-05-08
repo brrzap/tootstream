@@ -34,6 +34,13 @@ def worker_process(q, targetstream, listener, tag=None):
         worklogger.debug('no listener')
         return
 
+    # ignore Ctrl-C
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    #import os
+    #if os.name=='nt':
+    #    signal.signal(signal.CTRL_C_EVENT, signal.SIG_IGN)
+
     lname = listener._dbgname
     # wrap stream call
     try:
