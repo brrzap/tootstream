@@ -167,16 +167,13 @@ def follow_accept(username):
         cprint("  username not found", fg('red'))
     else:
         try:
-            user = mastodon.follow_request_authorize(userid)
-            # a more thorough check would be to call
-            # mastodon.account_relationships(user['id'])
-            # and check the returned data
-            # here we're lazy and assume we're good if the
-            # api return matches the request
-            if user['id'] == userid:
-                cprint("  user " + str(userid) + "'s request is accepted", fg('blue'))
+            mastodon.follow_request_authorize(userid)
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
+            return
+
+        print_ui_msg("  user {}'s request is accepted".format(userid))
+    return
 #aliases
 _follow.add_command(follow_accept, 'ok')
 _follow.add_command(follow_accept, 'f-yeh')
@@ -197,16 +194,13 @@ def follow_reject(username):
         cprint("  username not found", fg('red'))
     else:
         try:
-            user = mastodon.follow_request_reject(userid)
-            # a more thorough check would be to call
-            # mastodon.account_relationships(user['id'])
-            # and check the returned data
-            # here we're lazy and assume we're good if the
-            # api return matches the request
-            if user['id'] == userid:
-                cprint("  user " + str(userid) + "'s request is rejected", fg('blue'))
+            mastodon.follow_request_reject(userid)
         except:
             cprint("  ... well, it *looked* like it was working ...", fg('red'))
+            return
+
+        print_ui_msg("  user {}'s request is rejected".format(userid))
+    return
 #aliases
 _follow.add_command(follow_reject, 'no')
 _follow.add_command(follow_reject, 'f-no')
