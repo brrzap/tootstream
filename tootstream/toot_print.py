@@ -28,7 +28,7 @@ GLYPHS = {
     # keys matching keys in user{}
     'locked':        '\U0001f512', # lock (masto web uses U+F023 from FontAwesome)
     # keys matching keys in toot{}
-    'favourited':    '\U00002b50', # star '\U0001f31f' '\U00002b50'
+    'favourited':    '\U00002605', # star '\U0001f31f' '\U00002b50'
     'reblogged':     '\U0001f1e7', # regional-B '\U0001f1e7'? reuse ♺?
     # keys matching keys in relationship{}
     'followed_by':   '\U0001f43e', # pawprints '\U0001f43e'
@@ -162,6 +162,11 @@ def _format_acted(toot):
     if toot.get('reblogged'): out.append( GLYPHS['reblogged'] )
     return " "+' '.join(out)
 
+def _format_app(toot):
+    if toot.get('application') and toot.get('application').get('name'):
+        return "via {} ".format(toot['application']['name'])
+    return ''
+
 def _format_nsfw(toot, prefix='[', suffix=']'):
     if not toot['sensitive']: return ''
     return "{}{}{}".format(prefix, "NSFW", suffix)
@@ -230,7 +235,7 @@ def _style_id_line(toot, style1=[], style2=None, style3=None, style4=None, prefi
     return '  '.join(( stylize( prefix + _format_visibility(toot), style1 ),
                        stylize( _format_counts(toot) + _format_acted(toot), style2 ),
                        stylize( _format_id(toot), style3 ),
-                       stylize( _format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
+                       stylize( _format_app(toot) + _format_time(toot) + " (" + _format_time_relative(toot) + ")" + suffix, style4) ))
 
 
 def _style_tootid_username(toot, style=[], prefix='', suffix=''):
@@ -361,42 +366,33 @@ def printTootSummary(toot):
 
 def printTimelineToot(toot):
     """Prints toot nicely with randomized username coloring."""
-    from .toot_utils import get_active_mastodon
-    mastodon = get_active_mastodon()
-    # Prints individual toot/tooter info
-    print( _indent + _style_name_line(toot['account'], fg(random.choice(COLORS))) )
-    print( _indent + _style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) )
-    content = get_content(toot)
-
-    # boosted toots
+    out = []
+    # if it's a boost, only output header line from toot
+    # then get other data from toot['reblog']
     if toot['reblog']:
-        # all the interesting stuff is in here.  media/sensitive/spoiler are not
-        # present in the wrapper toot.
-        print(_indent + _style_tootid_username(toot['reblog'], fg('cyan'), prefix='Boosted ', suffix=':'))
-        if toot['reblog']['spoiler_text']:
-            cprint(_indent + _format_spoiler(toot['reblog']), fg('red'), end=":\n")
-        content = _indent + get_content(toot['reblog'])
-        cprint(content, fg('white'))
-        if toot['reblog']['media_attachments']:
-            print(_style_media_list(toot['reblog'], fg('magenta'), prefix=_indent+_indent+_indent))
-        print("")
-        return
+        header = stylize("  Boosted by ", fg('yellow'))
+        name = ' '.join(( _style_name_line(toot['account'], fg('blue')),
+                          stylize("({}):".format(_format_id(toot)), fg('yellow')) ))
+        out.append(header+name)
+        toot = toot['reblog']
 
-    # reply
-    elif toot['in_reply_to_id']:
-        # get the reply to print context. spoiler text might have changed, etc
-        # TODO: cut down to 1 line of context; user can use thread cmd if they need more
-        repliedToot = mastodon.status(toot['in_reply_to_id'])
-        print(_indent + _style_tootid_username(repliedToot, fg('blue'), prefix='Replied to ', suffix=':'))
-        print(_indent + _style_toot_summary_line(repliedToot, fg('blue')) )
+    # get the first two lines
+    out += [ "  "+_style_name_line(toot['account'], fg(random.choice(COLORS))),
+             "  "+_style_id_line(toot, fg('blue'), fg('cyan'), fg('red'), attr('dim')) ]
 
-    # last but not least, spoilertext (CW)
-    if toot['spoiler_text']:
-        cprint(_indent + _format_spoiler(toot), fg('red'), end=":\n")
-    cprint(content, fg('white'))
+    if toot['in_reply_to_id']:
+        out.append( stylize("  Replying to id:{}:".format(toot['in_reply_to_id']), fg('blue')) )
+
+    if toot['spoiler_text'] != '':
+        out.append( "  "+stylize(_format_spoiler(toot), fg('red')) )
+
+    out.append( stylize(get_content(toot), fg('white')) )
+
     if toot['media_attachments']:
-        print(_style_media_list(toot, fg('magenta'), prefix=_indent))
-    print("")
+        out.append( _style_media_list(toot, fg('magenta'), prefix=_indent) )
+
+    print( '\n'.join(out) )
+    print()
 
 
 def printNotification(note):

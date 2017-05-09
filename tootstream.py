@@ -521,7 +521,7 @@ def faves():
                      short_help='show a timeline of toots from a user' )
 @click.argument('username', metavar='<user>')
 def timeline(username):
-    """Displays toots you've tooted."""
+    """Displays another user's toots."""
     mastodon = get_active_mastodon()
     userid = get_userid(username)
     if isinstance(userid, list):
