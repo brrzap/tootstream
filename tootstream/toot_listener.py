@@ -1,5 +1,5 @@
 from mastodon import StreamListener
-from .toot_print import print_error, print_ui_msg, printTimelineToot
+from .toot_print import print_error, print_ui_msg, printTimelineToot, printNotification
 from .toot_utils import add_listener, get_listeners, get_logger
 import multiprocessing
 import logging
@@ -270,7 +270,7 @@ def seek_and_destroy(name):
 # end
 
 
-def seek_and_kick(name):
+def seek_and_kick(name, console=False):
     from .toot_utils import get_active_profile
     if not name:
         return False
@@ -280,16 +280,18 @@ def seek_and_kick(name):
 
     targetstream = None
     listener = None
+
+    # validate and find targetstream
     if not tag and not profile:
         return False
     elif profile == get_active_profile():
         from .toot_utils import get_active_mastodon
         if tag is None:
             targetstream = get_active_mastodon().user_stream
-            listener = TootDesktopNotifications(profile)
+            #listener = TootDesktopNotifications(profile)
         else:
             targetstream = get_active_mastodon().hashtag_stream
-            listener = TootDesktopNotifications(profile, tag)
+            #listener = TootDesktopNotifications(profile, tag)
     else:
         from mastodon import Mastodon
         from .toot_utils import get_profile_values
@@ -302,10 +304,16 @@ def seek_and_kick(name):
 
         if tag is None:
             targetstream = newmasto.user_stream
-            listener = TootDesktopNotifications(profile)
+            #listener = TootDesktopNotifications(profile)
         else:
             targetstream = newmasto.hashtag_stream
-            listener = TootDesktopNotifications(profile, tag)
+            #listener = TootDesktopNotifications(profile, tag)
+
+    # get listener
+    if console:
+        listener = TootConsoleNotifications(profile)
+    else:
+        listener = TootDesktopNotifications(profile, tag)
 
     return kick_new_process( targetstream, listener, tag=tag )
 # end
@@ -327,8 +335,34 @@ class TootConsoleListener(StreamListener):
         self.logger.debug("on_delete: toot id:{} deleted".format(statusid))
         return
 
-    def on_notification(self, note):
+    def on_notification(self, incoming):
         self.logger.debug("on_notification: note id:{} type:{} from acct:{}".format(incoming['id'], incoming['type'], incoming['account']['acct']))
+        return
+
+
+class TootConsoleNotifications(StreamListener):
+    """Simple subclass of mastodon.StreamListener to print notifications
+    on the console as they come in."""
+    def __init__(self, name, tag=None, *args, **kwargs):
+        super(TootConsoleNotifications, self).__init__(*args, **kwargs)
+        self._name = name
+        self._tag = tag
+        # set identifiers if available
+        if name and not name[:1] == '@':
+            self._name = "@{}".format(name)
+
+        if tag and not tag[:1] == '#':
+            self._tag = "#{}".format(tag)
+
+        self._dbgname = ("{}{}".format(self._tag, self._name) if self._tag else self._name)
+        self.logger = get_logger("consoleNotify{}".format(self._dbgname))
+        self.logger.debug("initializing logger")
+
+    def on_notification(self, incoming):
+        self.logger.debug("on_notification: note id:{} type:{} from acct:{}".format(incoming['id'], incoming['type'], incoming['account']['acct']))
+        # TODO: this should really go into a queue of some sort
+        print()  # extra newline first to clear the prompt, if applicable
+        printNotification(incoming)
         return
 
 

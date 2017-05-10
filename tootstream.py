@@ -96,7 +96,7 @@ def _tootstream():
     Commands can be tab-completed. Some readline keybindings are supported.
     Command history is available but not saved between sessions.
 
-    unimplemented: 2FA, direct message sending, get/set account options
+    unimplemented: get/set account options
     """
     pass
 

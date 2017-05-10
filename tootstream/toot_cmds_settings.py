@@ -60,8 +60,10 @@ _listen.add_command(listen_list, 'ls')
 @_listen.command( 'add', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='add a #tag listener' )
+@click.option( '--console', '-c', is_flag=True, default=False,
+               help='notify on console rather than desktop' )
 @click.argument('names', metavar='<#tag|@profile>', nargs=-1)
-def listen_add(names):
+def listen_add(console, names):
     """Add new listeners on specified #hashtags or @profiles.
 
     Valid arguments: #tagname, @profilename, #tagname@profilename
@@ -72,6 +74,9 @@ def listen_add(names):
        listen add #tag@other   # ...stream for "tag" at the instance on profile "other"
        listen add this         # ...first tries as profile, falls back to hashtag
        listen add #this @that #the@other   # starts 3 different listeners
+
+    Options:
+       -c, --console           print notifications on stdout instead of popups (experimental)
     """
     # ignore global setting here since this is directly user-requested
     if len(names)==0:
@@ -79,7 +84,7 @@ def listen_add(names):
         return
 
     for name in names:
-        if seek_and_kick(name):
+        if seek_and_kick(name, console):
             print_ui_msg("  Listener {} is off and running.".format(name))
         else:
             print_error("  Could not locate listener {}.".format(name))
