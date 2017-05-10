@@ -804,10 +804,6 @@ _tootstream.add_command(tootstream.toot_cmds_relations._mute)
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option( '--instance', '-i', metavar='<hostname>',
                help='Hostname of the instance to connect' )
-@click.option( '--email', '-e', metavar='<email>',
-               help='Email to login' )
-@click.option( '--password', '-p', metavar='<PASSWD>',
-               help='Password to login (UNSAFE)' )
 @click.option( '--config', '-c', metavar='<file>',
                type=click.Path(exists=False, readable=True),
                default='~/.config/tootstream/tootstream.conf',
@@ -816,7 +812,7 @@ _tootstream.add_command(tootstream.toot_cmds_relations._mute)
                help='Name of profile for saved credentials (default)' )
 @click.option( '--notifications', '-n', metavar='', default=False, is_flag=True,
                help='Enable desktop notifications (experimental)' )
-def main(instance, email, password, config, profile, notifications):
+def main(instance, config, profile, notifications):
     (q, lt) = configure_logging()
     logger.info('================================')
     logger.info('Starting tootstream-experimental')
@@ -833,7 +829,7 @@ def main(instance, email, password, config, profile, notifications):
     if not cfg.has_section(profile):
         cfg.add_section(profile)
 
-    instance, client_id, client_secret, token = parse_or_input_profile(profile, instance, email, password)
+    instance, client_id, client_secret, token = parse_or_input_profile(profile, instance)
     if not token:
         msg = "Could not log you in.  Please try again later."
         print_error(msg)
@@ -864,8 +860,7 @@ def main(instance, email, password, config, profile, notifications):
     save_config()
 
 
-    cprint("Welcome to tootstream! Two-Factor-Authentication is currently not supported.", fg('blue'))
-    print("You are connected to ", end="")
+    cprint("You are connected to ", fg('blue'), end="")
     cprint(instance, fg('green') + attr('bold'))
     print("Enter a command. Use 'help' for a list of commands.")
     print("\n")

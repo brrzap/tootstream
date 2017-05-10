@@ -169,17 +169,13 @@ _profile.add_command(profile_list, 'ls')
                   cls=TootStreamCmd,
                   short_help='add a profile' )
 @click.argument('profile', metavar='[<profile>', required=False, default=None)
-@click.argument('instance', metavar='[<hostname>', required=False, default=None)
-@click.argument('email', metavar='[<email>', required=False, default=None)
-@click.argument('password', metavar='[<passwd>]]]]', required=False, default=None)
-def profile_add(profile, instance, email, password):
+@click.argument('instance', metavar='[<hostname>]]', required=False, default=None)
+def profile_add(profile, instance):
     """Create a new profile.
 
     \b
         profile:  name of the profile to add
-       hostname:  instance this account is on
-          email:  email to log into the account
-         passwd:  password to the account (UNSAFE -- this will be visible)"""
+       hostname:  instance this account is on"""
     if profile is None:
         profile = input("  Profile name: ")
 
@@ -192,7 +188,7 @@ def profile_add(profile, instance, email, password):
 
     instance, client_id, client_secret, token = parse_or_input_profile(profile)
     if not token:
-        print_error("Could not log you in. Please try again later.\nThis profilename/email will not be saved.")
+        print_error("Could not log you in. Please try again later.\nThis profile will not be saved.")
         return
 
     try:
@@ -201,8 +197,10 @@ def profile_add(profile, instance, email, password):
             client_secret=client_secret,
             access_token=token,
             api_base_url="https://" + instance)
-    except:
-        print_error("Mastodon error")
+    except Exception as e:
+        msg = "{}: {}".format(type(e).__name__, e)
+        logger.error(msg)
+        print_error(msg)
         return
 
     # update stuff
@@ -276,8 +274,10 @@ def profile_load(profile):
                 client_secret=client_secret,
                 access_token=token,
                 api_base_url="https://" + instance)
-        except:
-            print_error("Mastodon error")
+        except Exception as e:
+            msg = "{}: {}".format(type(e).__name__, e)
+            logger.error(msg)
+            print_error(msg)
             return
 
         # update stuff

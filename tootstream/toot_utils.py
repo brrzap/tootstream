@@ -168,7 +168,10 @@ def save_config():
         with open(filename, 'w') as configfile:
             cfg.write(configfile)
     except os.error:
-        logger.error("Unable to write configuration to {}".format(filename))
+        from .toot_print import print_error
+        msg = "Unable to write configuration to {}".format(filename)
+        logger.error(msg)
+        print_error(msg)
 # save_config
 
 
@@ -177,33 +180,35 @@ def register_app(instance):
                                 api_base_url="https://" + instance )
 
 
-def login(instance, client_id, client_secret, email, password):
+def login(instance, client_id, client_secret):
     """
     Login to a Mastodon instance.
     Return a valid Mastodon token if login success, likely raises a Mastodon exception otherwise.
     """
-    if (email == None):
-        email = input("  Email used to login: ")
-    if (password == None):
-        password = getpass.getpass("  Password: ")
-
+    from .toot_print import print_ui_msg
     # temporary object to aquire the token
     mastodon = Mastodon(
         client_id=client_id,
         client_secret=client_secret,
         api_base_url="https://" + instance
     )
-    return mastodon.log_in(email, password)
+
+    print_ui_msg("  OAuth authorization needed.\nOpen this link in your browser to authorize login:")
+    print_ui_msg("  {}".format(mastodon.auth_request_url()))
+    print()
+    code = input("  Enter authorization code:> ")
+
+    return mastodon.log_in(code=code)
 
 
-def parse_or_input_profile(profile, instance=None, email=None, password=None):
+def parse_or_input_profile(profile, instance=None):
     """
     Validate an existing profile or get user input to generate a new one.
-    If email/password is necessary, the user will be prompted 3 times
+    If the user is not logged in, the user will be prompted 3 times
     before giving up.  Returns profile values on success: instance, client_id, client_secret, token
     On failure, returns None, None, None, None.
     """
-    from .toot_print import cprint
+    from .toot_print import print_ui_msg, print_error
     cfg = get_config()
     # shortcut for preexisting profiles
     if cfg.has_section(profile):
@@ -221,7 +226,7 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
     elif "instance" in cfg[profile]:
         instance = cfg[profile]['instance']
     else:
-        cprint("  Which instance would you like to connect to? eg: 'mastodon.social'", fg('blue'))
+        print_ui_msg("  Which instance would you like to connect to? eg: 'mastodon.social'")
         instance = input("  Instance: ")
 
 
@@ -237,23 +242,26 @@ def parse_or_input_profile(profile, instance=None, email=None, password=None):
         try:
             client_id, client_secret = register_app(instance)
         except Exception as e:
-            logger.error("{}: please try again later".format(type(e).__name__))
+            logger.error("{}: {}".format(type(e).__name__, e))
+            print_error("  {}: Please try again later.".format(type(e).__name__))
             return None, None, None, None
 
     token = None
     if "token" in cfg[profile]:
         token = cfg[profile]['token']
 
-    if (token == None or email != None or password != None):
+    if (token == None):
         for i in [1, 2, 3]:
             try:
-                token = login(instance, client_id, client_secret, email, password)
+                token = login(instance, client_id, client_secret)
             except Exception as e:
-                logger.error("{}: did you type it right?".format(type(e).__name__))
+                logger.error("{}: {}".format(type(e).__name__, e))
+                print_error("  Error authorizing app. Did you enter the code correctly?")
             if token: break
 
         if not token:
             logger.error("giving up after 3 failed login attempts")
+            print_error("  giving up after 3 failed login attempts")
             return None, None, None, None
 
     return instance, client_id, client_secret, token
