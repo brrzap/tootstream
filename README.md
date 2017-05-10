@@ -1,8 +1,6 @@
 # tootstream (*experimental*)
 A command line interface for interacting with Mastodon instances written in python.
 
-tootstream currently does not support 2FA.
-
 This branch has been heavily modified.  You can find the original at
 [magicalraccoon/tootstream](https://github.com/magicalraccoon/tootstream).
 Please report problems with this branch here and not on the upstream repo.
