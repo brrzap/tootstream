@@ -216,7 +216,7 @@ def seek_and_destroy(name):
         lstn = next((x for x in lstnrs if name in x._dbgname), None)
         if child and lstn and lstn._dbgname in child.name:
             # names match, ok
-            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(child.name, lstn._dbgname))
             child.terminate()
             child.join()
             lstnrs.remove(lstn)
@@ -239,7 +239,7 @@ def seek_and_destroy(name):
         lstn = next((x for x in lstnrs if tname in x._dbgname), None)
         if child and lstn and lstn._dbgname in child.name:
             # names match, ok
-            logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
+            logger.debug("seek_and_destroy: targets found ({}, {})".format(child.name, lstn._dbgname))
             child.terminate()
             child.join()
             lstnrs.remove(lstn)
@@ -256,7 +256,7 @@ def seek_and_destroy(name):
             lstn = next((x for x in lstnrs if tname in x._dbgname), None)
             if child and lstn and lstn._dbgname in child.name:
                 # names match, ok
-                logger.debug("seek_and_destroy: targets found ({}, {})".format(pname, lstn._dbgname))
+                logger.debug("seek_and_destroy: targets found ({}, {})".format(child.name, lstn._dbgname))
                 child.terminate()
                 child.join()
                 lstnrs.remove(lstn)
@@ -311,7 +311,7 @@ def seek_and_kick(name, console=False):
 
     # get listener
     if console:
-        listener = TootConsoleNotifications(profile)
+        listener = TootConsoleNotifications(profile, tag)
     else:
         listener = TootDesktopNotifications(profile, tag)
 
@@ -357,6 +357,16 @@ class TootConsoleNotifications(StreamListener):
         self._dbgname = ("{}{}".format(self._tag, self._name) if self._tag else self._name)
         self.logger = get_logger("consoleNotify{}".format(self._dbgname))
         self.logger.debug("initializing logger")
+
+    def on_update(self, toot):
+        # probably don't want notifications on every post
+        self.logger.debug("on_update: toot id:{} from acct:{}".format(toot['id'], toot['account']['acct']))
+        if self._tag:
+            print()
+            printTimelineToot(toot)
+        else:
+            # if self._tag is empty we're on a user stream, ignore
+            pass
 
     def on_notification(self, incoming):
         self.logger.debug("on_notification: note id:{} type:{} from acct:{}".format(incoming['id'], incoming['type'], incoming['account']['acct']))
