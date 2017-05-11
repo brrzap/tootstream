@@ -1,7 +1,7 @@
 import click
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_click import TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
+from .toot_click import TootArgument, TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
 from .toot_utils import *
 from .toot_print import *
 from .toot_listener import *
@@ -20,7 +20,7 @@ logger = logging.getLogger('ts.set')
                    invoke_without_command=True,
                    no_args_is_help=True,
                    options_metavar='',
-                   subcommand_metavar='<command>' )
+                   subcommand_metavar='<cmd>' )
 def _listen():
     """Listener management operations: add, remove, list.
     Additions will spawn new desktop notification processes."""
@@ -30,13 +30,18 @@ def _listen():
 @_listen.command( 'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def listen_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
         c = _listen.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_listen.get_help(ctx))
 
@@ -61,12 +66,12 @@ _listen.add_command(listen_list, 'ls')
                   cls=TootStreamCmd,
                   short_help='add a #tag listener' )
 @click.option( '--console', '-c', is_flag=True, default=False,
-               help='notify on console rather than desktop' )
-@click.argument('names', metavar='<#tag|@profile>', nargs=-1)
+               help='print notifications on stdout instead of popups' )
+@click.argument( 'names', metavar='<#tag|@profile>', nargs=-1,
+                 cls=TootArgument, required=False,
+                 help='a #tag, @profile, or #tag@profile to listen on' )
 def listen_add(console, names):
     """Add new listeners on specified #hashtags or @profiles.
-
-    Valid arguments: #tagname, @profilename, #tagname@profilename
 
     \b
        listen add #hashtag     # listens to the current instance's hashtag stream for "hashtag"
@@ -74,9 +79,6 @@ def listen_add(console, names):
        listen add #tag@other   # ...stream for "tag" at the instance on profile "other"
        listen add this         # ...first tries as profile, falls back to hashtag
        listen add #this @that #the@other   # starts 3 different listeners
-
-    Options:
-       -c, --console           print notifications on stdout instead of popups (experimental)
     """
     # ignore global setting here since this is directly user-requested
     if len(names)==0:
@@ -98,11 +100,11 @@ _listen.add_command(listen_add, 'new')
 @_listen.command( 'stop', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='stop a listener' )
-@click.argument('names', metavar='<#tag|@profile>', nargs=-1, required=False)
+@click.argument( 'names', metavar='<#tag|@profile>', nargs=-1,
+                 cls=TootArgument, required=False,
+                 help='a listener (#tag, @profile, or #tag@profile) to remove' )
 def listen_stop(names):
     """Stop existing listeners.
-
-    Valid arguments: #tagname, @profilename, #tagname@profilename
 
     \b
        listen stop #hashtag     # stops a hashtag listener for "hashtag"
@@ -138,7 +140,7 @@ _listen.add_command(listen_stop, 'rm')
                    invoke_without_command=True,
                    no_args_is_help=True,
                    options_metavar='',
-                   subcommand_metavar='<command>' )
+                   subcommand_metavar='<cmd>' )
 def _profile():
     """Profile management operations: create, load, remove, list.
     Additions and removals will save the configuration file."""
@@ -148,13 +150,18 @@ def _profile():
 @_profile.command( 'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def profile_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
         c = _profile.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_profile.get_help(ctx))
 
@@ -173,14 +180,14 @@ _profile.add_command(profile_list, 'ls')
 @_profile.command( 'add', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='add a profile' )
-@click.argument('profile', metavar='[<profile>', required=False, default=None)
-@click.argument('instance', metavar='[<hostname>]]', required=False, default=None)
+@click.argument( 'profile', metavar='[<profile>', default=None,
+                 cls=TootArgument, required=False,
+                 help='name of the new profile' )
+@click.argument( 'instance', metavar='[<hostname>]]', default=None,
+                 cls=TootArgument, required=False,
+                 help='instance for the new profile' )
 def profile_add(profile, instance):
-    """Create a new profile.
-
-    \b
-        profile:  name of the profile to add
-       hostname:  instance this account is on"""
+    """Create a new profile."""
     if profile is None:
         profile = input("  Profile name: ")
 
@@ -233,7 +240,9 @@ _profile.add_command(profile_add, 'create')
 @_profile.command( 'del', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='delete a profile' )
-@click.argument('profile', metavar='<profile>', required=False, default=None)
+@click.argument( 'profile', metavar='<profile>', default=None,
+                 cls=TootArgument, required=False,
+                 help='name of the profile to delete' )
 def profile_del(profile):
     """Delete a profile."""
     if profile is None:
@@ -259,7 +268,9 @@ _profile.add_command(profile_del, 'remove')
 @_profile.command( 'load', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='load a profile' )
-@click.argument('profile', metavar='<profile>', required=False, default=None)
+@click.argument( 'profile', metavar='<profile>', default=None,
+                 cls=TootArgument, required=False,
+                 help='name of the profile to load' )
 def profile_load(profile):
     """Load a different profile."""
     if profile is None:
