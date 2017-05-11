@@ -565,8 +565,11 @@ def stream(timeline):
             mastodon.user_stream(listener)
         elif timeline.startswith('f') or timeline.startswith('p'):
             mastodon.public_stream(listener)
-        #elif timeline.startswith('l'):
-        #    mastodon.local_stream(listener)
+        elif timeline.startswith('l'):
+            # TODO: replace when working
+            #mastodon.local_stream(listener)
+            # fine, we'll do this the hard way
+            mastodon._Mastodon__stream('/api/v1/streaming/public/local', listener)
         elif timeline.startswith('#'):
             tag = timeline[1:] # assuming API wants a tag without the # ...
             #tag = timeline     # ... with the # doesn't seem to work either
