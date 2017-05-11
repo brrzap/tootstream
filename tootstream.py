@@ -65,6 +65,58 @@ def configure_logging():
 
 
 #####################################
+######## HELP TOPICS       # ########
+#####################################
+_helptopic_header_ = """\nTootstream Help for {}:\n"""
+_helptopic_multiline_ = """  Examples of multiline toots and escaping quotes:
+
+  ex 1:  toot it\\'s me!
+         toot "it's me!"
+         \b
+            posted:   it's me!
+  \b
+  ex 2:  toot "this is line one
+         \b
+         this is line three"
+  \b
+         toot this is line one\\
+         \\
+         this is line three
+         \b
+            posted:   this is line one
+            \b
+                      this is line three
+  \b
+  ex 3:  toot "it's easy to avoid escapes if you're only using one type of quote"
+         \b
+            posted:   it's easy to avoid escapes if you're only using one type of quote
+  \b
+  ex 4:  toot "it's harder when you "\\"really\\"" want 'em both"
+         toot "it's harder when you "'"really"'" want 'em both"
+         \b
+            posted:   it's harder when you "really" want 'em both
+"""
+
+# registry of help terms
+_helptopic_dict_ = { 'multiline': _helptopic_multiline_,
+                     'quoting': _helptopic_multiline_ }
+
+def _help_topic(topic):
+    """Print prepared help topics."""
+    print(_helptopic_header_.format(topic))
+    if topic.startswith(':'):
+        topic = topic[1:]
+    if topic in ['topics', 'all']:
+        print("  {}".format('  '.join([ ":{}".format(x) for x in _helptopic_dict_.keys()])))
+    elif topic in _helptopic_dict_.keys():
+        print(_helptopic_dict_[topic])
+    else:
+        print("  Nothing found for that topic.")
+    print()
+    return
+
+
+#####################################
 ######## UTILITY FUNCTIONS # ########
 #####################################
 # see tootstream.toot_util module
@@ -91,12 +143,20 @@ def configure_logging():
               options_metavar='',
               subcommand_metavar='<command>' )
 def _tootstream():
-    """Tootstream commands.
+    """Tootstream commands.  See 'help <cmd>' for details on a command or
+    'help :topics' for other online help.
 
-    Commands can be tab-completed. Some readline keybindings are supported.
+    * Commands can be tab-completed. Some readline keybindings are supported.
     Command history is available but not saved between sessions.
 
-    unimplemented: get/set account options
+    * Multiline input is supported in a bash-style manner: use a backslash before
+    the newline or leave an unclosed quote.  Unfortunately this requires
+    proper quoting, so you'll need to escape quotes in some situations.
+    See 'help :multiline' for examples.
+
+
+    * unimplemented: get/set account options, list users who fav'd/boosted a toot,
+    show followers and following lists for another user, show server information
     """
     pass
 
@@ -114,11 +174,16 @@ def tsrepl():
 @_tootstream.command( 'help', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
+        if cmd.startswith(':'):
+            _help_topic(cmd)
+            return
         c = _tootstream.get_command(ctx, cmd)
         if not c:
             click.echo('"{}": unknown command'.format(cmd))
@@ -177,27 +242,35 @@ def _ts_option_filecheck_list_cb(ctx, param, value):
 @click.option( '--spoiler', '--cw', '-s', 'spoiler', metavar='<string>',
                required=False, default=None,
                help='a string to be shown before hidden content' )
-@click.option( '--vis', '-v', 'vis', metavar='<>',
+@click.option( '--vis', '-v', 'vis', metavar='<p|u|pr|d>',
                type=click.Choice(['acct', 'p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct']),
                default='acct',
-               help='post visibility (public, unlisted, private, direct)' )
+               help='post visibility (public, unlisted, private, direct) (default: account)' )
 @click.option( '--append', '-a', metavar='<file>',
                required=False, default=None,
                multiple=True,
                callback=_ts_option_filecheck_list_cb,
                type=click.Path(),
                help='read post text from a file' )
-@click.argument('text', nargs=-1, metavar='<text>')
+@click.argument( 'text', nargs=-1, metavar='<text>',
+                 cls=TootArgument, required=False,
+                 help='text to toot' )
 def toot(text, media, nsfw, spoiler, vis, append):
-    """Publish a toot. ex: 'toot Hello World' will publish 'Hello World'.
+    """Publish a toot.
 
     \b
-      -m, --add-media <file>         attach a media file to the post
-                                       (repeat to attach up to 4 files)
-      -n, --nsfw                     mark attachments as sensitive
-      -v, --vis <p|u|pr|d>           set post visibility to public/unlisted/private/direct
-      -s, --cw, --spoiler <string>   set spoiler text
-      -a, --append <file>            read post text from a file (not yet implemented)
+    ex:
+      toot Hello World
+    \b
+    use quotes around spoiler warnings:
+      toot --cw "spoiler alert!" the boat sinks.
+    \b
+    use quotes or backslash to get multiline input:
+      toot --vis direct @user@instance psst! wanna know a secret? \\
+      \\
+      just like bash!
+
+    See also 'help :multiline'
     """
     if not text and not append:
         msg = "cowardly refusing to post an empty post"
@@ -257,30 +330,41 @@ _tootstream.add_command(toot, 't')
                required=False, default=None,
                help='a string to be shown before hidden content' )
 @click.option( '--nospoiler', '--nocw', 'nospoiler', is_flag=True,
-               help='don\'t use original toot\'s spoiler text' )
-@click.option( '--vis', '-v', 'vis', metavar='<>',
+               help='no content warning (don\'t use original toot\'s CW)' )
+@click.option( '--vis', '-v', 'vis', metavar='<p|u|pr|d>',
                type=click.Choice(['p', 'public', 'u', 'unlisted', 'pr', 'private', 'd', 'direct', 'orig']),
                default='orig', # follow the parent's setting
-               help='post visibility (public, unlisted, private, direct)' )
+               help='post visibility (public, unlisted, private, direct) (default: as original)' )
 @click.option( '--append', '-a', metavar='<file>',
                required=False, default=None,
                multiple=True,
                callback=_ts_option_filecheck_list_cb,
                type=click.Path(),
                help='read post text from a file' )
-@click.argument('tootid', metavar='<id>')
-@click.argument('text', nargs=-1, metavar='<text>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='toot to reply to' )
+@click.argument( 'text', nargs=-1, metavar='<text>',
+                 cls=TootArgument, required=False,
+                 help='reply text' )
 def reply(tootid, text, media, nsfw, spoiler, nospoiler, vis, append):
-    """Reply to a toot by ID.  Defaults to the original toot's visibility and spoiler text.
+    """Reply to a toot by ID.  Replies default to the original toot's
+    visibility and spoiler text.  The author of the original toot and
+    any accounts mentioned are included automatically.
 
     \b
-      -m, --add-media <file>         attach a media file to the post
-                                       (repeat to attach up to 4 files)
-      -n, --nsfw                     mark attachments as sensitive
-      -v, --vis <p|u|pr|d>           change post visibility to public/unlisted/private/direct
-      -s, --cw, --spoiler <string>   change spoiler text
-          --nocw, --nospoiler        don't use original toot's spoiler text
-      -a, --append <file>            read post text from a file (not yet implemented)
+    reply to tootid 31 with 31's content warning and visibility:
+      reply 31 Hello World
+    \b
+    reply and change the CW text and visibility:
+      reply 31 --vis unlisted --cw "spoiler alert!" the boat sinks.
+    \b
+    use quotes or backslash to get multiline input:
+      reply 31 --vis direct @user@instance psst! wanna know a secret? \\
+      \\
+      just like bash!
+
+    See also 'help :multiline'
     """
     if not text and not append:
         msg = "cowardly refusing to post an empty post"
@@ -344,7 +428,9 @@ _tootstream.add_command(reply, 'rep')
 @_tootstream.command( 'boost', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='boost a toot' )
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to boost' )
 def boost(tootid):
     """Boosts a toot by ID."""
     mastodon = get_active_mastodon()
@@ -363,7 +449,9 @@ _tootstream.add_command(boost, 'retoot')
 @_tootstream.command( 'unboost', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='undo a boost' )
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to unboost' )
 def unboost(tootid):
     """Removes a boosted tweet by ID."""
     mastodon = get_active_mastodon()
@@ -379,7 +467,9 @@ def unboost(tootid):
 @_tootstream.command( 'fav', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='favorite a toot' )
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to favourite' )
 def fav(tootid):
     """Favorites a toot by ID."""
     mastodon = get_active_mastodon()
@@ -397,7 +487,9 @@ _tootstream.add_command(fav, 'star')
 @_tootstream.command( 'unfav', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unfavorite a toot' )
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to unfavourite' )
 def unfav(tootid):
     """Removes a favorite toot by ID."""
     mastodon = get_active_mastodon()
@@ -450,10 +542,11 @@ _tootstream.add_command(local, 'l')
 @_tootstream.command( 'stream', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='stream a timeline' )
-@click.argument( 'timeline', metavar='<timeline>',
+@click.argument( 'timeline', metavar='<timeline>', default='home',
                  #type=click.Choice(['h', 'home', 'f', 'fed', 'p', 'pub', 'public']),
                  #type=click.Choice(['h', 'home', 'l', 'local', 'f', 'fed', 'p', 'pub', 'public']),
-                 default='home' )
+                 cls=TootArgument, required=True,
+                 help='timeline to stream' )
 def stream(timeline):
     """Displays a timeline as a continuous stream.
 
@@ -519,7 +612,9 @@ def faves():
 @_tootstream.command( 'timeline', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show a timeline of toots from a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user whose timeline to show' )
 def timeline(username):
     """Displays another user's toots."""
     mastodon = get_active_mastodon()
@@ -554,7 +649,9 @@ _tootstream.add_command(mine, 'mytoots')
                      cls=TootStreamCmd,
                      short_help='thread history of a toot' )
 # TODO: option to output to file (`--dump`, `-o`?)
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to display as a thread' )
 def thread(tootid):
     """Displays the thread this toot is part of, ex: 'thread 7'"""
     mastodon = get_active_mastodon()
@@ -607,7 +704,9 @@ _tootstream.add_command(note, 'n')
 @_tootstream.command( 'whois', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='search for a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to search for' )
 def whois(username):
     """Search for a user."""
     mastodon = get_active_mastodon()
@@ -622,7 +721,9 @@ _tootstream.add_command(whois, 'who')
 @_tootstream.command( 'whatis', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='search for a hashtag' )
-@click.argument('tag', metavar='<tag>')
+@click.argument( 'tag', metavar='<tag>',
+                 cls=TootArgument, required=True,
+                 help='hashtag to search for' )
 def whatis(tag):
     """Search for a hashtag."""
     mastodon = get_active_mastodon()
@@ -637,7 +738,9 @@ _tootstream.add_command(whatis, 'what')
 @_tootstream.command( 'search', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='search #tag|@user' )
-@click.argument('query', metavar='<query>')
+@click.argument( 'query', metavar='<query>',
+                 cls=TootArgument, required=True,
+                 help='search query (@user, #hashtag, term, url)' )
 def search(query):
     """Search for a #tag or @user.
 
@@ -720,7 +823,9 @@ _tootstream.add_command(info, 'whoami')
 @_tootstream.command( 'delete', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='delete a toot' )
-@click.argument('tootid', metavar='<id>')
+@click.argument( 'tootid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='id of the toot to delete' )
 def delete(tootid):
     """Deletes your toot by ID"""
     mastodon = get_active_mastodon()
@@ -741,16 +846,14 @@ _tootstream.add_command(delete, 'rm')
                help='argument is a userid' )
 #@click.option( '--get', '-g', flag_value='get',
 #               help='argument is an API enpoint' )
-@click.argument('thisid', metavar='<id>')
+@click.argument( 'thisid', metavar='<id>',
+                 cls=TootArgument, required=True,
+                 help='tootid, @user, userid (with -u), or /api/endpoint' )
 def raw(thisid, user):
-    """Displays the API's view of a toot or user.  Assumes
-    the argument is a tootID unless it begins with @ or /.
+    """Displays a toot or user as a full response dict.
 
     \b
-       -u, --user    force treat argument as a user
-
-    \b
-    Ex:   raw 100                   # gets toot with ID 100
+    ex:   raw 100                   # gets toot with ID 100
           raw @foo                  # gets user foo
           raw -u 100                # gets user with ID 100
           raw /api/v1/accounts/100  # gets user with ID 100
