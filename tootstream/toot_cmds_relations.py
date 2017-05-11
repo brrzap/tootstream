@@ -1,7 +1,7 @@
 import click
 from mastodon import Mastodon
 from colored import fg, attr, stylize
-from .toot_click import TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
+from .toot_click import TootArgument, TootStreamCmd, TootStreamGroup, CONTEXT_SETTINGS
 from .toot_utils import *
 from .toot_print import *
 import logging
@@ -18,7 +18,7 @@ logger = logging.getLogger('ts.reltns')
                   invoke_without_command=True,
                   no_args_is_help=True,
                   options_metavar='',
-                  subcommand_metavar='<command>' )
+                  subcommand_metavar='<cmd>' )
 def _follow():
     """Follower management operations: list, add, remove, following,
     requests, accept, reject.
@@ -41,13 +41,18 @@ def _follow():
 @_follow.command( 'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def follow_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
         c = _follow.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_follow.get_help(ctx))
 
@@ -104,7 +109,9 @@ _follow.add_command(follow_requests, 'req')
 @_follow.command(    'follow', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='follow a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to follow' )
 def follow_follow(username):
     """Follows an account by username or id."""
     mastodon = get_active_mastodon()
@@ -129,7 +136,9 @@ _follow.add_command(follow_follow, 'f')
 @_follow.command(    'unfollow', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unfollow a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to unfollow' )
 def follow_unfollow(username):
     """Unfollows an account by username or id."""
     mastodon = get_active_mastodon()
@@ -155,7 +164,9 @@ _follow.add_command(follow_unfollow, 'unf')
 @_follow.command(    'accept', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='accept a follow request' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to accept' )
 def follow_accept(username):
     """Accepts a user's follow request by username or id."""
     mastodon = get_active_mastodon()
@@ -182,7 +193,9 @@ _follow.add_command(follow_accept, 'f-yeh')
 @_follow.command(    'reject', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='reject a follow request' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to reject' )
 def follow_reject(username):
     """Rejects a user's follow request by username or id."""
     mastodon = get_active_mastodon()
@@ -209,7 +222,9 @@ _follow.add_command(follow_reject, 'f-no')
 @_follow.command(    'show', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show relations with a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to examine' )
 def follow_show(username):
     """Show relations between you and another user."""
     mastodon = get_active_mastodon()
@@ -259,13 +274,18 @@ def _block():
 @_block.command(  'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def block_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
         c = _block.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_block.get_help(ctx))
 
@@ -290,7 +310,9 @@ _block.add_command(block_list, 'show')
 @_block.command(     'block', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='block a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to block' )
 def block_add(username):
     """Blocks a user by username or id."""
     mastodon = get_active_mastodon()
@@ -315,7 +337,9 @@ _block.add_command(block_add, 'add')
 @_block.command(     'unblock', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unblock a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to unblock' )
 def block_remove(username):
     """Unblocks a user by username or id."""
     mastodon = get_active_mastodon()
@@ -356,13 +380,18 @@ def _mute():
 @_mute.command(   'help', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='get help for a command' )
-@click.argument('cmd', metavar='<cmd>', required=False, default=None)
+@click.argument( 'cmd', metavar='<cmd>', default=None,
+                 cls=TootArgument, required=False,
+                 help='get help for this command' )
 def mute_help(cmd):
     """Get details on how to use a command."""
     ctx = click.get_current_context()
     if not cmd is None:
         c = _mute.get_command(ctx, cmd)
-        click.echo(c.get_help(ctx))
+        if not c:
+            click.echo('"{}": unknown command'.format(cmd))
+        else:
+            click.echo(c.get_help(ctx))
         return
     click.echo(_mute.get_help(ctx))
 
@@ -387,7 +416,9 @@ _mute.add_command(mute_list, 'show')
 @_mute.command(      'mute', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='mute a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to mute' )
 def mute_add(username):
     """Mutes a user by username or id."""
     mastodon = get_active_mastodon()
@@ -412,7 +443,9 @@ _mute.add_command(mute_add, 'add')
 @_mute.command(      'unmute', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unmute a user' )
-@click.argument('username', metavar='<user>')
+@click.argument( 'username', metavar='<user>',
+                 cls=TootArgument, required=True,
+                 help='user to unmute' )
 def mute_remove(username):
     """Unmutes a user by username or id."""
     mastodon = get_active_mastodon()
