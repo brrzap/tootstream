@@ -551,9 +551,8 @@ _tootstream.add_command(local, 'l')
 def stream(timeline):
     """Displays a timeline as a continuous stream.
 
-    Currently only 'home' or 'public' ('fed') timelines are
-    supported, but support for 'local' timeline is expected.
-    Hashtag timelines connect but do not seem functional.
+    Supported timelines are 'home', 'public' ('fed'), 'local',
+    and '#hashtag'.
 
     Press Ctrl-C to return to the prompt."""
     print_ui_msg("  Press Ctrl-C to return to the prompt.")
