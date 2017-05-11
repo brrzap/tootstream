@@ -21,6 +21,8 @@ $ python3 setup.py install
 $ ./tootstream.py
 ```
 
+To exit tootstream use `CTRL-D` or `:q(uit)`
+
 ##### Close with: `$ deactivate`
 
 ----
