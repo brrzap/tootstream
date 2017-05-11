@@ -4,13 +4,72 @@ import logging
 logger = logging.getLogger('ts.click')
 
 
-__all__ = [ 'TootStreamCmd', 'TootStreamGroup',
+__all__ = [ 'TootStreamCmd', 'TootStreamGroup', 'TootArgument',
             'CONTEXT_SETTINGS',
             'repl', 'register_repl' ]
 
 
 CONTEXT_SETTINGS = dict( help_option_names=['-h', '--help'],
                          max_content_width=100 )
+
+
+class TootHelpFormatter(click.HelpFormatter):
+    """Overload click.HelpFormatter to customize help formatting."""
+    def __init__(self, *args, **kwargs):
+        super(TootHelpFormatter, self).__init__(*args, **kwargs)
+
+    def write_command_list(self, rows, col_max=30, col_spacing=2):
+        """Writes a 3-column list into the buffer. Based on click.HelpFormatter.write_dl()
+
+        :param rows: a list of 3-item tuples (cmd, argstr, shorthelp)
+        """
+        #rows = list(rows)
+
+        #first_col = max(len(row[0]) for row in rows) + col_spacing
+        #second_col = max(len(row[1]) for row in rows) + col_spacing
+        first_col = max(len(row[0]) for row in rows)
+        second_col = max(len(row[1]) for row in rows)
+
+        for row in rows:
+            (first, second, third) = row
+            self.write("{}{}{}{}{}{}\n".format(
+                        " "*self.current_indent,
+                        "{: >{width}}".format(first, width=first_col),
+                        " "*col_spacing,
+                        "{: <{width}}".format(second, width=second_col),
+                        " "*col_spacing,
+                        third ))
+
+        self.write("\n")
+        return
+
+class TootArgument(click.Argument):
+    """Overload click.Argument to customize help formatting."""
+    hidden = False
+
+    def __init__(self, param_decls, hidden=False, help=None, *args, **kwargs):
+        super(TootArgument, self).__init__(param_decls, *args, **kwargs)
+        self.hidden = hidden
+        self.help = help
+
+    def get_help_record(self, ctx):
+        if self.hidden:
+            return
+
+        name = self.metavar or self.name
+        helpstr = self.help
+
+        #if self.nargs == -1 and not self.required:
+        #    helpstr = "{} (0 or more)".format(helpstr)
+        if self.nargs == -1:
+            helpstr = "{} (at least 1)".format(helpstr)
+        elif self.nargs > 1:
+            helpstr = "{} ({})".format(helpstr, self.nargs)
+
+        #if not self.required:
+        #    helpstr = "(opt) {}".format(helpstr)
+
+        return (name, helpstr)
 
 
 class TootStreamCmd(click.Command):
@@ -22,17 +81,72 @@ class TootStreamCmd(click.Command):
         self.hidden = hidden
         # TODO: do something with aliases
 
+    # define this here to avoid subclassing click.Context too
+    def make_formatter(self, ctx):
+        return TootHelpFormatter( width=ctx.terminal_width,
+                                  max_width=ctx.max_content_width )
+
+    # overload to use our own formatter
+    def get_help(self, ctx):
+        formatter = self.make_formatter(ctx)
+        self.format_help(ctx, formatter)
+        return formatter.getvalue().rstrip('\n')
+
+    # overload to use our own formatter
+    def get_usage(self, ctx):
+        formatter = self.make_formatter(ctx)
+        self.format_usage(ctx, formatter)
+        return formatter.getvalue().rstrip('\n')
+
     def format_usage(self, ctx, formatter):
         pieces = list(filter(None, self.collect_usage_pieces(ctx)))
         formatter.write_usage(self.name, ' '.join(pieces))
 
     def format_help(self, ctx, formatter):
-        self.format_usage(ctx, formatter)
         self.format_help_text(ctx, formatter)
         # TODO: detect non-help options and print if exist
         # only help options atm, skip
-        #self.format_options(ctx, formatter)
+        self.format_arguments(ctx, formatter)
+        self.format_options(ctx, formatter)
+        formatter.write("\n")
         self.format_epilog(ctx, formatter)
+        self.format_usage(ctx, formatter)
+        formatter.write("\n")
+
+    def format_arguments(self, ctx, formatter):
+        opts = []
+        for param in self.get_params(ctx):
+            # skip options and normal click.Arguments
+            if not isinstance(param, TootArgument):
+                continue
+            rv = param.get_help_record(ctx)
+            if rv is not None:
+                opts.append(rv)
+
+        if opts:
+            with formatter.section('Arguments'):
+                formatter.write_dl(opts)
+
+        return
+
+    def format_options(self, ctx, formatter):
+        opts = []
+        for param in self.get_params(ctx):
+            # skip help options
+            if param.name == 'help':
+                continue
+            # skip non-Options
+            if not isinstance(param, click.Option):
+                continue
+            rv = param.get_help_record(ctx)
+            if rv is not None:
+                opts.append(rv)
+
+        if opts:
+            with formatter.section('Options'):
+                formatter.write_dl(opts)
+
+        return
 
 
 class TootStreamGroup(click.Group, TootStreamCmd):
@@ -46,11 +160,12 @@ class TootStreamGroup(click.Group, TootStreamCmd):
         self.format_help_text(ctx, formatter)
 
     def format_usage(self, ctx, formatter):
+        # skip usage in basegroup
+        if self.name == "tootstream":
+            return
         pieces = list(filter(None, self.collect_usage_pieces(ctx)))
         pieces.append('<args>')
-        basename = ""
-        if self.name != "tootstream":
-            basename = self.name
+        basename = self.name
         formatter.write_usage(basename, ' '.join(pieces))
 
     def format_options(self, ctx, formatter):
@@ -60,6 +175,7 @@ class TootStreamGroup(click.Group, TootStreamCmd):
 
     def format_commands(self, ctx, formatter):
         # TODO: proper aliases will require changes
+
         # in click.Group this compiles a list of (cmd, help),
         # but our aliases pull in several duplicates.
         #
@@ -80,12 +196,13 @@ class TootStreamGroup(click.Group, TootStreamCmd):
             cmds.sort()
             h = self.commands[cmds[0]].short_help
             args = self.commands[cmds[0]].collect_usage_pieces(ctx)
-            rows.append(('|'.join(cmds)+' '+' '.join(args), h))
+            args = ' '.join(args).strip()
+            rows.append(('|'.join(cmds), args, h))
 
         # 3. hand off to the formatter as ('cmd1|cmd2 <args>', 'help text')
         if rows:
             with formatter.section('Commands'):
-                formatter.write_dl(rows)
+                formatter.write_command_list(rows)
 
 
 class TootStreamCmdCollection(click.CommandCollection):
