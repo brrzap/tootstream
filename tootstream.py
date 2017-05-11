@@ -154,9 +154,10 @@ def _tootstream():
     proper quoting, so you'll need to escape quotes in some situations.
     See 'help :multiline' for examples.
 
-
     * unimplemented: get/set account options, list users who fav'd/boosted a toot,
     show followers and following lists for another user, show server information
+
+    * Ctrl-D, ':q(uit)', or ':exit' will exit the program.
     """
     pass
 
@@ -965,7 +966,7 @@ def main(instance, config, profile, notifications):
 
     cprint("You are connected to ", fg('blue'), end="")
     cprint(instance, fg('green') + attr('bold'))
-    print("Enter a command. Use 'help' for a list of commands.")
+    print("Enter a command. Use 'help' for a list of commands.\nCtrl-D, ':q(uit)', or ':exit' will end the program.")
     print("\n")
 
     user = mastodon.account_verify_credentials()
