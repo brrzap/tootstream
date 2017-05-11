@@ -571,9 +571,12 @@ def stream(timeline):
             tag = timeline[1:] # assuming API wants a tag without the # ...
             #tag = timeline     # ... with the # doesn't seem to work either
             logger.debug("starting stream on tag {}".format(tag))
-            print_ui_msg("  Note: hashtag streams don't seem to work at present.")
-            print_ui_msg("        feel free to try them out and check debug logs.")
-            mastodon.hashtag_stream(tag, listener)
+            print_ui_msg("  Starting stream on #{}\n".format(tag))
+            # TODO: figure out why this isn't working.
+            #mastodon.hashtag_stream(tag, listener)
+            # fine, we'll do this the hard way
+            endpt = "/api/v1/streaming/hashtag?tag={}".format(tag)
+            mastodon._Mastodon__stream(endpt, listener)
         else:
             logger.debug("cmd stream got unexpected input {}".format(timeline))
     except Exception as e:

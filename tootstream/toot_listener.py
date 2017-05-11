@@ -47,7 +47,11 @@ def worker_process(q, targetstream, listener, tag=None):
     try:
         if tag:
             worklogger.debug('starting tag stream {}'.format(lname))
-            targetstream(tag, listener)
+            # TODO: figure out why this isn't working.
+            #targetstream(tag, listener)
+            # fine, we'll do this the hard way
+            endpt = "/api/v1/streaming/hashtag?tag={}".format(tag)
+            targetstream(endpt, listener)
         else:
             worklogger.debug('starting notification stream {}'.format(lname))
             targetstream(listener)
@@ -290,7 +294,10 @@ def seek_and_kick(name, console=False):
             targetstream = get_active_mastodon().user_stream
             #listener = TootDesktopNotifications(profile)
         else:
-            targetstream = get_active_mastodon().hashtag_stream
+            # TODO: figure out why this isn't working.
+            #targetstream = get_active_mastodon().hashtag_stream
+            # fine, we'll do this the hard way
+            targetstream = get_active_mastodon()._Mastodon__stream
             #listener = TootDesktopNotifications(profile, tag)
     else:
         from mastodon import Mastodon
@@ -306,7 +313,10 @@ def seek_and_kick(name, console=False):
             targetstream = newmasto.user_stream
             #listener = TootDesktopNotifications(profile)
         else:
-            targetstream = newmasto.hashtag_stream
+            # TODO: figure out why this isn't working.
+            #targetstream = newmasto.hashtag_stream
+            # fine, we'll do this the hard way
+            targetstream = newmasto._Mastodon__stream
             #listener = TootDesktopNotifications(profile, tag)
 
     # get listener
