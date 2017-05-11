@@ -885,10 +885,9 @@ def raw(thisid, user):
             return print_error("are you sure '" + str(thisid) + "' is a real tootID?")
         response = mastodon.status(thisid)
 
-    if response:
-        # TODO: add --summarize and/or --prettify flags
-        #       to do something other than barf python dicts
-        print(str(response))
+    # TODO: add --summarize and/or --prettify flags
+    #       to do something other than barf python dicts
+    print(repr(response))
 #aliases
 
 
