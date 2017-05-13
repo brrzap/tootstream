@@ -748,12 +748,26 @@ _tootstream.add_command(thread, 'detail')
 @_tootstream.command( 'note', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show notification timeline' )
-def note():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 15)' )
+def note(limit):
     """Displays the Notifications timeline."""
     mastodon = get_active_mastodon()
     # TODO: extract follow notifications & print separately?
     #       consolidate so notifs on same toot are all together?
-    for note in reversed(mastodon.notifications()):
+
+    # limit argument not supported by Mastodon.py (yet)
+    #for note in reversed(mastodon.notifications(limit=limit)):
+    #    printNotification(note)
+
+    if limit == 0: return
+
+    notes = mastodon.notifications()
+    if limit > len(notes):
+        limit = len(notes)
+    for note in reversed(notes[:limit]):
         printNotification(note)
 # aliases
 _tootstream.add_command(note, 'n')
