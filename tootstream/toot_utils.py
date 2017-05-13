@@ -267,6 +267,56 @@ def parse_or_input_profile(profile, instance=None):
     return instance, client_id, client_secret, token
 
 
+#####################################
+######## ARG/OPT CALLBACKS # ########
+#####################################
+# callback helper
+def _ts_filecheck(filename):
+    # takes a filename, expands, tests for existence and readability
+    # returns expanded path or None
+    fnm = os.path.expanduser(filename)
+    if os.path.exists(fnm) and os.access(fnm, os.R_OK):
+        return fnm
+    return None
+
+
+# callback for media option
+def _ts_option_filecheck_list_cb(ctx, param, value):
+    # takes a list of filenames from arguments
+    # expands paths, tests existence and readability
+    # aborts with error if tests fail
+    #print("DEBUG: ", str(param), str(param.name), str(value), str(ctx))
+    if value is None: return None
+    if len(value) > 4:
+        msg = "only 4 attachments allowed"
+        print_error(msg)
+        logger.error("{} (received: {})".format(msg, len(value)))
+        ctx.abort()
+    v = []
+    error = False
+    for val in value:
+        f = _ts_filecheck(val)
+        if f is None:
+            msg = "file {} is not readable".format(val)
+            print_error(msg)
+            logger.error(msg)
+            ctx.abort()
+        v.append(f)
+    return v
+
+
+# callback for limit arguments
+def _ts_arg_limitcheck_cb(ctx, param, value):
+    # aborts with error if negative
+    # returns None if None
+    if value is None: return None
+    elif value < 0:
+        msg = "Invalid limit: {}".format(value)
+        logger.error(msg)
+        ctx.fail(msg)
+    return value
+
+
 __all__ = [ 'set_configfile', 'get_configfile',
             'set_config', 'get_config',
             'set_user', 'get_user',
@@ -280,5 +330,8 @@ __all__ = [ 'set_configfile', 'get_configfile',
             'parse_or_input_profile',
             'parse_config',
             'save_config',
-            'get_logger' ]
+            'get_logger',
+            '_ts_option_filecheck_list_cb',
+            '_ts_arg_limitcheck_cb'
+            ]
 

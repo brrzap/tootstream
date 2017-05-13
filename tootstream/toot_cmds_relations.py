@@ -60,11 +60,16 @@ def follow_help(cmd):
 @_follow.command(    'followers', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='list who follows you' )
-def follow_followers():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum users to show (default: 40, max: 80)' )
+def follow_followers(limit):
     """Lists users who follow you."""
     mastodon = get_active_mastodon()
+    if limit == 0: return
     user = mastodon.account_verify_credentials()
-    users = mastodon.account_followers(user['id'])
+    users = mastodon.account_followers(user['id'], limit=limit)
     if not users:
         cprint("  You're safe!  There's nobody following you", fg('red'))
     else:
@@ -76,11 +81,16 @@ _follow.add_command(follow_followers, 'f-ers')
 @_follow.command(    'following', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='list who you follow' )
-def follow_following():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum users to show (default: 40, max: 80)' )
+def follow_following(limit):
     """Lists users you follow."""
     mastodon = get_active_mastodon()
+    if limit == 0: return
     user = mastodon.account_verify_credentials()
-    users = mastodon.account_following(user['id'])
+    users = mastodon.account_following(user['id'], limit=limit)
     if not users:
         cprint("  You aren't following anyone", fg('red'))
     else:
@@ -92,10 +102,15 @@ _follow.add_command(follow_following, 'f-ing')
 @_follow.command(    'requests', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='list requests to follow you' )
-def follow_requests():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum users to show (default: 40, max: 80)' )
+def follow_requests(limit):
     """Lists your incoming follow requests."""
     mastodon = get_active_mastodon()
-    users = mastodon.follow_requests()
+    if limit == 0: return
+    users = mastodon.follow_requests(limit=limit)
     if not users:
         cprint("  You have no incoming requests", fg('red'))
     else:
@@ -295,6 +310,7 @@ def block_help(cmd):
                      short_help='list users you block' )
 def block_list():
     """Lists users you have blocked."""
+    # TODO: limit, pagination
     mastodon = get_active_mastodon()
     users = mastodon.blocks()
     if not users:
@@ -401,6 +417,7 @@ def mute_help(cmd):
                      short_help='list users you mute' )
 def mute_list():
     """Lists users you have muted."""
+    # TODO: limit, pagination
     mastodon = get_active_mastodon()
     users = mastodon.mutes()
     if not users:
