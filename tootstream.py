@@ -117,6 +117,56 @@ def _help_topic(topic):
 
 
 #####################################
+######## ARG/OPT CALLBACKS # ########
+#####################################
+# callback helper
+def _ts_filecheck(filename):
+    # takes a filename, expands, tests for existence and readability
+    # returns expanded path or None
+    fnm = os.path.expanduser(filename)
+    if os.path.exists(fnm) and os.access(fnm, os.R_OK):
+        return fnm
+    return None
+
+
+# callback for media option
+def _ts_option_filecheck_list_cb(ctx, param, value):
+    # takes a list of filenames from arguments
+    # expands paths, tests existence and readability
+    # aborts with error if tests fail
+    #print("DEBUG: ", str(param), str(param.name), str(value), str(ctx))
+    if value is None: return None
+    if len(value) > 4:
+        msg = "only 4 attachments allowed"
+        print_error(msg)
+        logger.error("{} (received: {})".format(msg, len(value)))
+        ctx.abort()
+    v = []
+    error = False
+    for val in value:
+        f = _ts_filecheck(val)
+        if f is None:
+            msg = "file {} is not readable".format(val)
+            print_error(msg)
+            logger.error(msg)
+            ctx.abort()
+        v.append(f)
+    return v
+
+
+# callback for limit arguments
+def _ts_arg_limitcheck_cb(ctx, param, value):
+    # aborts with error if negative
+    # returns None if None
+    if value is None: return None
+    elif value < 0:
+        msg = "Invalid limit: {}".format(value)
+        logger.error(msg)
+        ctx.fail(msg)
+    return value
+
+
+#####################################
 ######## UTILITY FUNCTIONS # ########
 #####################################
 # see tootstream.toot_util module
@@ -192,41 +242,6 @@ def help(cmd):
             click.echo(c.get_help(ctx))
         return
     click.echo(_tootstream.get_help(ctx))
-
-
-# callback helper
-def _ts_filecheck(filename):
-    # takes a filename, expands, tests for existence and readability
-    # returns expanded path or None
-    fnm = os.path.expanduser(filename)
-    if os.path.exists(fnm) and os.access(fnm, os.R_OK):
-        return fnm
-    return None
-
-
-# callback for media option
-def _ts_option_filecheck_list_cb(ctx, param, value):
-    # takes a list of filenames from arguments
-    # expands paths, tests existence and readability
-    # aborts with error if tests fail
-    #print("DEBUG: ", str(param), str(param.name), str(value), str(ctx))
-    if value is None: return None
-    if len(value) > 4:
-        msg = "only 4 attachments allowed"
-        print_error(msg)
-        logger.error("{} (received: {})".format(msg, len(value)))
-        ctx.abort()
-    v = []
-    error = False
-    for val in value:
-        f = _ts_filecheck(val)
-        if f is None:
-            msg = "file {} is not readable".format(val)
-            print_error(msg)
-            logger.error(msg)
-            ctx.abort()
-        v.append(f)
-    return v
 
 
 @_tootstream.command( 'toot', options_metavar='',
@@ -506,10 +521,15 @@ def unfav(tootid):
 @_tootstream.command( 'home', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show home timeline' )
-def home():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def home(limit):
     """Displays the Home timeline."""
     mastodon = get_active_mastodon()
-    for toot in reversed(mastodon.timeline_home()):
+    if limit == 0: return
+    for toot in reversed(mastodon.timeline_home(limit=limit)):
         printTimelineToot(toot)
 # aliases
 _tootstream.add_command(home, 'h')
@@ -518,10 +538,15 @@ _tootstream.add_command(home, 'h')
 @_tootstream.command( 'public', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show public timeline' )
-def public():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def public(limit):
     """Displays the Public (federated) timeline."""
     mastodon = get_active_mastodon()
-    for toot in reversed(mastodon.timeline_public()):
+    if limit == 0: return
+    for toot in reversed(mastodon.timeline_public(limit=limit)):
         printTimelineToot(toot)
 # aliases
 _tootstream.add_command(public, 'pub')
@@ -531,10 +556,15 @@ _tootstream.add_command(public, 'fed')
 @_tootstream.command( 'local', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show local timeline' )
-def local():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def local(limit):
     """Displays the Local (instance) timeline."""
     mastodon = get_active_mastodon()
-    for toot in reversed(mastodon.timeline_local()):
+    if limit == 0: return
+    for toot in reversed(mastodon.timeline_local(limit=limit)):
         printTimelineToot(toot)
 # aliases
 _tootstream.add_command(local, 'l')
@@ -592,10 +622,23 @@ def stream(timeline):
 @_tootstream.command( 'faves', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show your favourites' )
-def faves():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20)' )
+def faves(limit):
     """Displays posts you've favourited."""
     mastodon = get_active_mastodon()
-    for toot in reversed(mastodon.favourites()):
+    # limit argument not supported by Mastodon.py (yet)
+    #for toot in reversed(mastodon.favourites(limit=limit)):
+    #    printTimelineToot(toot)
+
+    if limit == 0: return
+
+    toots = mastodon.favourites()
+    if limit > len(toots):
+        limit = len(toots)
+    for toot in reversed(toots[:limit]):
         printTimelineToot(toot)
 # aliases
 
@@ -621,9 +664,14 @@ def faves():
 @click.argument( 'username', metavar='<user>',
                  cls=TootArgument, required=True,
                  help='user whose timeline to show' )
-def timeline(username):
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def timeline(username, limit):
     """Displays another user's toots."""
     mastodon = get_active_mastodon()
+    if limit == 0: return
     userid = get_userid(username)
     if isinstance(userid, list):
         cprint("  multiple matches found:", fg('red'))
@@ -631,7 +679,7 @@ def timeline(username):
     elif userid == -1:
         cprint("  username not found", fg('red'))
     else:
-        for toot in reversed(mastodon.account_statuses(userid)):
+        for toot in reversed(mastodon.account_statuses(userid, limit=limit)):
             printTimelineToot(toot)
 # aliases
 _tootstream.add_command(timeline, 'tootsfrom')
@@ -640,13 +688,17 @@ _tootstream.add_command(timeline, 'tootsfrom')
 @_tootstream.command( 'mine', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='show your toots' )
-def mine():
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def mine(limit):
     """Displays toots you've tooted."""
     mastodon = get_active_mastodon()
     # TODO: user's creds should really be stored somewhere
     thatsme = mastodon.account_verify_credentials()
     # no specific api for user's own toot timeline
-    click.get_current_context().invoke(timeline, username=thatsme['id'])
+    click.get_current_context().invoke(timeline, username=thatsme['id'], limit=limit)
 # aliases
 _tootstream.add_command(mine, 'mytoots')
 
@@ -730,12 +782,17 @@ _tootstream.add_command(whois, 'who')
 @click.argument( 'tag', metavar='<tag>',
                  cls=TootArgument, required=True,
                  help='hashtag to search for' )
-def whatis(tag):
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum posts to show (default: 20, max: 40)' )
+def whatis(tag, limit):
     """Search for a hashtag."""
     mastodon = get_active_mastodon()
+    if limit == 0: return
     # if user includes # prefix, remove it
     if tag[0] == "#": tag = tag[1:]
-    for toot in reversed(mastodon.timeline_hashtag(tag)):
+    for toot in reversed(mastodon.timeline_hashtag(tag, limit=limit)):
         printTimelineToot(toot)
 # aliases
 _tootstream.add_command(whatis, 'what')
