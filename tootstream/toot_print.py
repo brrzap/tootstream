@@ -530,6 +530,20 @@ def printUserRelations(user, relation):
     print("      {} {}".format( stylize("you", fg('cyan')), youstr ))
 
 
+def printServer(info):
+    # atm, interesting keys are 'uri', 'title', 'description', 'email', 'version'
+    # use .get() since some keys may not always be present
+    out = [ "",
+            "  server:  {}".format( stylize(info.get('uri'), fg(random.choice(COLORS))) ),
+            "  title:   {}".format( stylize(info.get('title'), fg('orange_red_1')) ),
+            "  version: {}".format( stylize(
+                                (info.get('version') if info.get('version') else '[none]'), fg('gold_3b')) ),
+            "  about:   {}".format( stylize(
+                                (_format_html(info.get('description')) if info.get('description') else '[none]'), fg('sky_blue_1') )),
+            "" ]
+    print( '\n'.join(out) )
+
+
 __all__ = [ 'cprint',
             'get_content',
             'stylePrompt',
@@ -544,6 +558,7 @@ __all__ = [ 'cprint',
             'printUsersShortShort',
             'printTootsShortShort',
             'printUserRelations',
+            'printServer',
             'print_error',
             'print_ui_msg' ]
 

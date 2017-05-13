@@ -166,6 +166,43 @@ def profile_help(cmd):
     click.echo(_profile.get_help(ctx))
 
 
+@_profile.command( 'info', options_metavar='',
+                  cls=TootStreamCmd,
+                  short_help='instance info for an existing profile' )
+@click.argument( 'profile', metavar='<profile>', default=None,
+                 cls=TootArgument, required=False,
+                 help='show info for this instance' )
+def profile_info(profile):
+    """Show server information for an existing profile."""
+    # default to active profile
+    mastodon = get_active_mastodon()
+
+    if profile:
+        if profile == get_active_profile():
+            # already set, fallthrough
+            pass
+        elif profile in get_known_profiles():
+            # create a temporary masto object, no need to authenticate
+            instance, *_ = get_profile_values(profile)
+            mastodon = Mastodon( 'xxxx', client_secret='xxxx', api_base_url="https://{}".format(instance) )
+        else:
+            print_error("  Cannot locate profile '{}'".format(profile))
+            printProfiles()
+            return
+    try:
+        info = mastodon.instance()
+    except Exception as e:
+        logger.debug("exception getting instance info: {}: {}".format(type(e).__name__, e))
+        print_error("API problem with the request")
+        return
+
+    if info:
+        printServer(info)
+
+    return
+# aliases
+
+
 @_profile.command( 'list', options_metavar='',
                   cls=TootStreamCmd,
                   short_help='list known profiles' )
