@@ -779,13 +779,26 @@ _tootstream.add_command(note, 'n')
 @click.argument( 'username', metavar='<user>',
                  cls=TootArgument, required=True,
                  help='user to search for' )
-def whois(username):
+@click.argument( 'limit', metavar='<limit>', default=None,
+                 cls=TootArgument, required=False,
+                 type=click.INT, callback=_ts_arg_limitcheck_cb,
+                 help='maximum users to show (default: 40)' )
+def whois(username, limit):
     """Search for a user."""
     mastodon = get_active_mastodon()
-    users = mastodon.account_search(username)
+    if limit == 0: return
+    users = mastodon.account_search(username, limit=limit)
 
-    for user in users:
-        printUser(user)
+    if not users or len(users) == 0:
+        print_ui_msg("  Search: '{}' returned no results\n".format(username))
+        return
+
+    if len(users) < 5:
+        for user in users:
+            printUser(user)
+    else:
+        print_ui_msg("  Search: '{}' returned {} results:".format(username, len(users)))
+        printUsersShortShort(users)
 # aliases
 _tootstream.add_command(whois, 'who')
 
