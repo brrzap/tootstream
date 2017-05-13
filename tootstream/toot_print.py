@@ -429,12 +429,17 @@ def printNotification(note):
 def printUser(user):
     """Prints user data nicely with hardcoded colors."""
     if not user: return
-    cprint(_indent + _pineapple + " " + _format_username(user), fg('cyan'), end="  ")
-    cprint(_format_display_name(user), fg('red'))
-    cprint(_indent + user['url'], fg('blue'), end="  ")
-    cprint(_format_id(user), fg('magenta'), end="  ")
-    cprint(_format_usercounts(user), fg('blue'))
-    cprint(_format_html(user['note']), fg('green'))
+    # use .get() since some keys may not always be present
+    out = [ "",
+            "  {} ({}): {}".format( _style_name_line(user, fg(random.choice(COLORS)), fg('spring_green_2b')),
+                                    stylize( _format_id(user), fg('orange_red_1')),
+                                    stylize( _format_usercounts(user), fg('cornflower_blue')) ),
+            "    avatar: {}".format( stylize( (user.get('avatar') if user.get('avatar') else '[none]'), fg('steel_blue_1b')) ),
+            "    url:    {}".format( stylize( (user.get('url') if user.get('url') else '[none]'), fg('steel_blue_1b')) ),
+            "    joined: {}".format( stylize( ("{} ({})".format(_format_time(user), _format_time_relative(user)) if user.get('created_at') else '[none]'), fg('gold_3b')) ),
+            "{}".format( stylize( (_format_html(user.get('note')) if user.get('note') else '[none]'), fg('sky_blue_1')) ),
+            "" ]
+    print( '\n'.join(out) )
 
 
 def printUserShort(user):
