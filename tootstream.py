@@ -893,17 +893,24 @@ _tootstream.add_command(info, 'whoami')
 @_tootstream.command( 'delete', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='delete a toot' )
-@click.argument( 'tootid', metavar='<id>',
+@click.argument( 'tootids', metavar='<ids>',
+                 nargs=-1, type=click.INT,
                  cls=TootArgument, required=True,
-                 help='id of the toot to delete' )
-def delete(tootid):
+                 help='list of tootIDs to delete' )
+def delete(tootids):
     """Deletes your toot by ID"""
     mastodon = get_active_mastodon()
     #tootid = IDS.to_global(tootid)
-    if tootid is None:
+    if tootids is None or min(x for x in tootids) <= 0:
         return print_error("error: invalid ID.")
-    mastodon.status_delete(tootid)
-    print("  Poof! It's gone.")
+
+    for tootid in tootids:
+        try:
+            mastodon.status_delete(tootid)
+            print("  Poof! It's gone.")
+        except Exception as e:
+            logger.debug("error processing {}: {}: {}".format(tootid, type(e).__name__, e))
+            print_error("  error deleting {}: {}".format(tootid, type(e).__name__))
 # aliases
 _tootstream.add_command(delete, 'del')
 _tootstream.add_command(delete, 'rm')
