@@ -551,6 +551,7 @@ def printServer(info):
 
 __all__ = [ 'cprint',
             'get_content',
+            'get_content_trimmed',
             'stylePrompt',
             'printProfiles',
             'printHistoryToot',

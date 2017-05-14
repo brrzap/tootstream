@@ -399,19 +399,26 @@ _tootstream.add_command(reply, 'rep')
 @_tootstream.command( 'boost', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='boost a toot' )
-@click.argument( 'tootid', metavar='<id>',
+@click.argument( 'tootids', metavar='<ids>',
+                 nargs=-1, type=click.INT,
                  cls=TootArgument, required=True,
-                 help='id of the toot to boost' )
-def boost(tootid):
+                 help='list of tootIDs to boost' )
+def boost(tootids):
     """Boosts a toot by ID."""
     mastodon = get_active_mastodon()
     #tootid = IDS.to_global(tootid)
-    if tootid is None:
+    if tootids is None or min(x for x in tootids) <= 0:
         return print_error("error: invalid ID.")
-    mastodon.status_reblog(tootid)
-    boosted = mastodon.status(tootid)
-    msg = "  Boosted: " + get_content(boosted)
-    cprint(msg, fg('green'))
+
+    for tootid in tootids:
+        try:
+            boosted = mastodon.status_reblog(tootid)
+            msg = "  Boosted: " + get_content_trimmed(boosted.get('reblog'))
+            cprint(msg, fg('green'))
+        except Exception as e:
+            logger.debug("error processing {}: {}: {}".format(tootid, type(e).__name__, e))
+            print_error("  error boosting {}: {}".format(tootid, type(e).__name__))
+
 # aliases
 _tootstream.add_command(boost, 'rt')
 _tootstream.add_command(boost, 'retoot')
@@ -420,37 +427,49 @@ _tootstream.add_command(boost, 'retoot')
 @_tootstream.command( 'unboost', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='undo a boost' )
-@click.argument( 'tootid', metavar='<id>',
+@click.argument( 'tootids', metavar='<ids>',
+                 nargs=-1, type=click.INT,
                  cls=TootArgument, required=True,
-                 help='id of the toot to unboost' )
-def unboost(tootid):
+                 help='list of tootIDs to unboost' )
+def unboost(tootids):
     """Removes a boosted tweet by ID."""
     mastodon = get_active_mastodon()
     #tootid = IDS.to_global(tootid)
-    if tootid is None:
+    if tootids is None or min(x for x in tootids) <= 0:
         return print_error("error: invalid ID.")
-    mastodon.status_unreblog(tootid)
-    unboosted = mastodon.status(tootid)
-    msg = "  Removed boost: " + get_content(unboosted)
-    cprint(msg, fg('red'))
+
+    for tootid in tootids:
+        try:
+            unboosted = mastodon.status_unreblog(tootid)
+            msg = "  Removed boost: " + get_content_trimmed(unboosted)
+            cprint(msg, fg('red'))
+        except Exception as e:
+            logger.debug("error processing {}: {}: {}".format(tootid, type(e).__name__, e))
+            print_error("  error unboosting {}: {}".format(tootid, type(e).__name__))
 
 
 @_tootstream.command( 'fav', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='favorite a toot' )
-@click.argument( 'tootid', metavar='<id>',
+@click.argument( 'tootids', metavar='<ids>',
+                 nargs=-1, type=click.INT,
                  cls=TootArgument, required=True,
-                 help='id of the toot to favourite' )
-def fav(tootid):
+                 help='list of tootIDs to favourite' )
+def fav(tootids):
     """Favorites a toot by ID."""
     mastodon = get_active_mastodon()
     #tootid = IDS.to_global(tootid)
-    if tootid is None:
+    if tootids is None or min(x for x in tootids) <= 0:
         return print_error("error: invalid ID.")
-    mastodon.status_favourite(tootid)
-    faved = mastodon.status(tootid)
-    msg = "  Favorited: " + get_content(faved)
-    cprint(msg, fg('red'))
+
+    for tootid in tootids:
+        try:
+            faved = mastodon.status_favourite(tootid)
+            msg = "  Favorited: " + get_content_trimmed(faved)
+            cprint(msg, fg('red'))
+        except Exception as e:
+            logger.debug("error processing {}: {}: {}".format(tootid, type(e).__name__, e))
+            print_error("  error faving {}: {}".format(tootid, type(e).__name__))
 # aliases
 _tootstream.add_command(fav, 'star')
 
@@ -458,19 +477,25 @@ _tootstream.add_command(fav, 'star')
 @_tootstream.command( 'unfav', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unfavorite a toot' )
-@click.argument( 'tootid', metavar='<id>',
+@click.argument( 'tootids', metavar='<ids>',
+                 nargs=-1, type=click.INT,
                  cls=TootArgument, required=True,
-                 help='id of the toot to unfavourite' )
-def unfav(tootid):
+                 help='list of tootIDs to unfav' )
+def unfav(tootids):
     """Removes a favorite toot by ID."""
     mastodon = get_active_mastodon()
     #tootid = IDS.to_global(tootid)
-    if tootid is None:
+    if tootids is None or min(x for x in tootids) <= 0:
         return print_error("error: invalid ID.")
-    mastodon.status_unfavourite(tootid)
-    unfaved = mastodon.status(tootid)
-    msg = "  Removed favorite: " + get_content(unfaved)
-    cprint(msg, fg('yellow'))
+
+    for tootid in tootids:
+        try:
+            unfaved = mastodon.status_unfavourite(tootid)
+            msg = "  Removed favorite: " + get_content_trimmed(unfaved)
+            cprint(msg, fg('yellow'))
+        except Exception as e:
+            logger.debug("error processing {}: {}: {}".format(tootid, type(e).__name__, e))
+            print_error("  error unfaving {}: {}".format(tootid, type(e).__name__))
 
 
 @_tootstream.command( 'home', options_metavar='',
