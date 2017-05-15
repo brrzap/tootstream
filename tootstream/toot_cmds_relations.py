@@ -10,6 +10,27 @@ logger = logging.getLogger('ts.reltns')
 
 
 #####################################
+###### HELPER FUNCTIONS         #####
+#####################################
+def check_usernames(names):
+    """Get userIDs for a list of names. Prints an error message and
+    returns [] (empty list) if a 1:1 match is not found."""
+    userids = [ get_userid(name) for name in names ]
+
+    # check for problems and error out if found
+    for userid, name in zip(userids, names):
+        if isinstance(userid, list):
+            cprint("  multiple matches found for {}:".format(name), fg('red'))
+            printUsersShortShort(userid)
+            return []
+        elif userid == -1:
+            cprint("  user not found: {}".format(name), fg('red'))
+            return []
+
+    return userids
+
+
+#####################################
 ###### FOLLOWER MANAGEMENT CMDS #####
 #####################################
 @click.group(     'follow', short_help='follow list|add|remove|following|requests',
@@ -124,19 +145,14 @@ _follow.add_command(follow_requests, 'req')
 @_follow.command(    'follow', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='follow a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to follow' )
-def follow_follow(username):
+                 help='users to follow' )
+def follow_follow(usernames):
     """Follows an account by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_follow(userid)
             if relations['following']:
@@ -151,19 +167,14 @@ _follow.add_command(follow_follow, 'f')
 @_follow.command(    'unfollow', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unfollow a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to unfollow' )
-def follow_unfollow(username):
+                 help='users to unfollow' )
+def follow_unfollow(usernames):
     """Unfollows an account by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_unfollow(userid)
             if not relations['following']:
@@ -179,19 +190,14 @@ _follow.add_command(follow_unfollow, 'unf')
 @_follow.command(    'accept', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='accept a follow request' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to accept' )
-def follow_accept(username):
+                 help='users to accept' )
+def follow_accept(usernames):
     """Accepts a user's follow request by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             mastodon.follow_request_authorize(userid)
         except:
@@ -208,19 +214,14 @@ _follow.add_command(follow_accept, 'f-yeh')
 @_follow.command(    'reject', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='reject a follow request' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to reject' )
-def follow_reject(username):
+                 help='users to reject' )
+def follow_reject(usernames):
     """Rejects a user's follow request by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             mastodon.follow_request_reject(userid)
         except:
@@ -254,11 +255,12 @@ def follow_show(username):
     ids = [ user['id'] for user in users ]
     try:
         relations = mastodon.account_relationships(ids)
-    except:
+    except Exception as e:
+        logger.debug("{} when calling Mastodon.account_relationships() with arg(s) {}".format(type(e).__name__, repr(ids)))
         print_error("  ... well, it *looked* like it was working ...")
 
     if len(relations) != len(users):
-        print_error("dbg: userlist ({}) not same size as relations ({})".format(len(users), len(relations)))
+        logger.debug("userlist ({}) not same size as relations ({})".format(len(users), len(relations)))
 
     # users and relations lists not guaranteed to be in the same order
     for rel in relations:
@@ -326,19 +328,14 @@ _block.add_command(block_list, 'show')
 @_block.command(     'block', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='block a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to block' )
-def block_add(username):
+                 help='users to block' )
+def block_add(usernames):
     """Blocks a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_block(userid)
             if relations['blocking']:
@@ -353,19 +350,14 @@ _block.add_command(block_add, 'add')
 @_block.command(     'unblock', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unblock a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to unblock' )
-def block_remove(username):
+                 help='users to unblock' )
+def block_remove(usernames):
     """Unblocks a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_unblock(userid)
             if not relations['blocking']:
@@ -433,19 +425,14 @@ _mute.add_command(mute_list, 'show')
 @_mute.command(      'mute', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='mute a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to mute' )
-def mute_add(username):
+                 help='users to mute' )
+def mute_add(usernames):
     """Mutes a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_mute(userid)
             if relations['muting']:
@@ -460,19 +447,14 @@ _mute.add_command(mute_add, 'add')
 @_mute.command(      'unmute', options_metavar='',
                      cls=TootStreamCmd,
                      short_help='unmute a user' )
-@click.argument( 'username', metavar='<user>',
+@click.argument( 'usernames', metavar='<users>', nargs=-1,
                  cls=TootArgument, required=True,
-                 help='user to unmute' )
-def mute_remove(username):
+                 help='users to unmute' )
+def mute_remove(usernames):
     """Unmutes a user by username or id."""
     mastodon = get_active_mastodon()
-    userid = get_userid(username)
-    if isinstance(userid, list):
-        cprint("  multiple matches found:", fg('red'))
-        printUsersShortShort(userid)
-    elif userid == -1:
-        cprint("  username not found", fg('red'))
-    else:
+    userids = check_usernames(usernames)
+    for userid in userids:
         try:
             relations = mastodon.account_unmute(userid)
             if not relations['muting']:
