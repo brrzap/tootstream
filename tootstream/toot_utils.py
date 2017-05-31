@@ -128,6 +128,22 @@ def get_userid(username):
     if not users:
         return -1
     elif len(users) > 1:
+        # Mastodon's search is fuzzier than we want; check for exact match
+
+        query = (username[1:] if username.startswith('@') else username)
+        (quser, _, qinstance) = query.partition('@')
+        localinstance, *_ = get_profile_values(get_active_profile())
+
+        # on uptodate servers, exact match should be first in list
+        for user in users:
+            # match user@remoteinstance, localuser
+            if query == user['acct']:
+                return user['id']
+            # match user@localinstance
+            elif quser == user['acct'] and qinstance == localinstance:
+                return user['id']
+
+        # no exact match; return list
         return users
     else:
         return users[0]['id']
